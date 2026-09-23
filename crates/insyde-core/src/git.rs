@@ -38,6 +38,12 @@ impl Drop for Slot {
 /// Run `git args…` in `cwd`, returning stdout (capped). Fails on non-zero exit
 /// with stderr as the message.
 pub fn run(cwd: &Path, args: &[&str]) -> Result<String> {
+    run_capped(cwd, args, MAX_OUTPUT)
+}
+
+/// [`run`] with a custom output cap. Output past the cap is drained and
+/// discarded (never left in the pipe, which would stall or SIGPIPE git).
+pub fn run_capped(cwd: &Path, args: &[&str], cap: usize) -> Result<String> {
     let _slot = Slot::take();
     let mut child = Command::new("git")
         .args(args)
@@ -50,9 +56,17 @@ pub fn run(cwd: &Path, args: &[&str]) -> Result<String> {
         .spawn()
         .with_context(|| format!("spawn git {}", args.first().unwrap_or(&"")))?;
     let mut out = Vec::with_capacity(4096);
-    child.stdout.take().unwrap().take(MAX_OUTPUT as u64).read_to_end(&mut out)?;
-    let mut err = String::new();
-    child.stderr.take().unwrap().take(64 * 1024).read_to_string(&mut err)?;
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+    let err_reader = std::thread::spawn(move || {
+        let mut err = String::new();
+        let _ = (&mut stderr).take(64 * 1024).read_to_string(&mut err);
+        let _ = std::io::copy(&mut stderr, &mut std::io::sink());
+        err
+    });
+    (&mut stdout).take(cap as u64).read_to_end(&mut out)?;
+    let _ = std::io::copy(&mut stdout, &mut std::io::sink());
+    let err = err_reader.join().unwrap_or_default();
     let status = child.wait()?;
     if !status.success() {
         bail!("git {}: {}", args.join(" "), err.trim());

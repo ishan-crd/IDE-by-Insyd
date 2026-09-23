@@ -108,7 +108,7 @@ pub struct TerminalSession {
     pub term: Arc<FairMutex<Term<Listener>>>,
     sender: EventLoopSender,
     pending: Arc<AtomicBool>,
-    size: Size,
+    size: Mutex<Size>,
     pub cwd: PathBuf,
     pub pid: u32,
     clipboard: Arc<Mutex<Option<String>>>,
@@ -143,7 +143,7 @@ impl TerminalSession {
         let sender = event_loop.channel();
         *writer.lock() = Some(sender.clone());
         event_loop.spawn();
-        Ok(Self { term, sender, pending, size: opts.size, cwd: opts.cwd, pid, clipboard })
+        Ok(Self { term, sender, pending, size: Mutex::new(opts.size), cwd: opts.cwd, pid, clipboard })
     }
 
     /// Call when a frame consumed the dirty signal, re-arming notifications.
@@ -166,14 +166,19 @@ impl TerminalSession {
     }
 
     pub fn size(&self) -> Size {
-        self.size
+        *self.size.lock()
     }
 
-    pub fn resize(&mut self, size: Size) {
-        if size == self.size || size.cols < 2 || size.rows < 1 {
-            return;
+    /// Resize the grid and the PTY. Cheap no-op when unchanged, so it can be
+    /// called from every layout pass.
+    pub fn resize(&self, size: Size) {
+        {
+            let mut cur = self.size.lock();
+            if *cur == size || size.cols < 2 || size.rows < 1 {
+                return;
+            }
+            *cur = size;
         }
-        self.size = size;
         let _ = self.sender.send(Msg::Resize(size.into()));
         self.term.lock().resize(size);
     }

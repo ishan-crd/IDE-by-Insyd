@@ -2,6 +2,7 @@
 //! background threads; the GPUI app owns scheduling.
 
 pub mod agents;
+pub mod brain;
 pub mod forge;
 pub mod git;
 pub mod project;

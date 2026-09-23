@@ -19,3 +19,4 @@ futures = "0.3"
 smol.workspace = true
 flume.workspace = true
 similar = "3"
+regex = "1"
