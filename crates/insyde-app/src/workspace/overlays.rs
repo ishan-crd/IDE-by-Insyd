@@ -289,16 +289,14 @@ impl Workspace {
                 .child(self.render_team_form(t, cx));
         }
 
+        // The Hand off and history popovers anchor under their buttons in the
+        // top bar (see top.rs); only their click-away scrims live here.
         if self.handoff.is_some() {
-            root = root
-                .child(scrim("ho-scrim", cx, |this| this.handoff = None))
-                .child(self.render_handoff(t, top, cx));
+            root = root.child(scrim("ho-scrim", cx, |this| this.handoff = None));
         }
 
         if self.history_open {
-            root = root
-                .child(scrim("hist-scrim", cx, |this| this.history_open = false))
-                .child(self.render_history(t, top, cx));
+            root = root.child(scrim("hist-scrim", cx, |this| this.history_open = false));
         }
 
         if let Some(bv) = &self.brain_view {
@@ -330,7 +328,7 @@ impl Workspace {
         root
     }
 
-    fn render_handoff(&mut self, t: &Theme, top: f32, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_handoff(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let Some(h) = &self.handoff else {
             return div().into_any_element();
         };
@@ -434,9 +432,6 @@ impl Workspace {
         }
         let target = AGENTS.get(h.target).map(|s| s.name).unwrap_or("agent");
         div()
-            .absolute()
-            .top(px(top))
-            .right(px(self.sizes().1 + 150.))
             .w(px(340.))
             .bg(t.panel)
             .border_1()
@@ -477,7 +472,7 @@ impl Workspace {
             .into_any_element()
     }
 
-    fn render_history(&mut self, t: &Theme, top: f32, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_history(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let path = self.active_wt_path();
         let rows = path
             .as_ref()
@@ -547,9 +542,6 @@ impl Workspace {
             );
         }
         div()
-            .absolute()
-            .top(px(top))
-            .right(px(self.sizes().1 + 8.))
             .w(px(300.))
             .max_h(px(420.))
             .p(px(4.))

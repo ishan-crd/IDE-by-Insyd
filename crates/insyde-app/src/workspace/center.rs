@@ -1,4 +1,4 @@
-//! Center: agent tab strip (+ Agent picker, context meter, Hand off) and the active tab.
+//! Center: agent tab strip (+ Agent picker) and the active tab.
 
 use super::{TabView, Workspace};
 use crate::ui::{self, icon, monogram};
@@ -170,104 +170,6 @@ impl Workspace {
                 ),
         );
 
-        // Right side: context meter, Hand off, agent count, history.
-        let chat = self.active_chat();
-        let (used, size) = chat
-            .as_ref()
-            .map(|c| c.read(cx).context_usage())
-            .unwrap_or((0, 200_000));
-        let pct = (used as f64 * 100. / size.max(1) as f64).min(100.) as f32;
-        let hot = pct > 85.;
-        let meter_color = if hot { t.err } else { t.ink_3 };
-        let agents = n_tabs;
-        let hov = t.hover;
-        let right = div()
-            .flex_none()
-            .flex()
-            .items_center()
-            .gap(px(6.))
-            .whitespace_nowrap()
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(7.))
-                    .px(px(4.))
-                    .text_size(metrics::TEXT_XS)
-                    .text_color(t.ink_3)
-                    .child(
-                        div()
-                            .w(px(44.))
-                            .h(px(4.))
-                            .rounded(px(4.))
-                            .bg(t.line)
-                            .overflow_hidden()
-                            .child(
-                                div()
-                                    .h_full()
-                                    .rounded(px(4.))
-                                    .w(gpui::relative(pct / 100.))
-                                    .bg(meter_color),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(meter_color)
-                            .child(format!(
-                                "{} / {}",
-                                ui::fmt_tokens(used),
-                                ui::fmt_tokens(size)
-                            )),
-                    ),
-            )
-            .child(
-                div()
-                    .id("handoff-btn")
-                    .flex()
-                    .items_center()
-                    .gap(px(6.))
-                    .h(px(26.))
-                    .px(px(10.))
-                    .rounded(metrics::RADIUS)
-                    .border_1()
-                    .border_color(t.field_border)
-                    .bg(if self.handoff.is_some() {
-                        t.hover_2
-                    } else {
-                        t.panel
-                    })
-                    .cursor_pointer()
-                    .text_size(metrics::TEXT_SM)
-                    .font_weight(FontWeight::MEDIUM)
-                    .hover(move |s| s.bg(hov))
-                    .child(icon("handoff", 13., t.ink))
-                    .child("Hand off")
-                    .on_click(cx.listener(|this, _, w, cx| this.open_handoff(w, cx))),
-            )
-            .child(
-                div()
-                    .px(px(8.))
-                    .py(px(2.))
-                    .rounded(px(4.))
-                    .bg(t.hover_2)
-                    .text_size(metrics::TEXT_XS)
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.ink_2)
-                    .child(format!(
-                        "{agents} agent{}",
-                        if agents == 1 { "" } else { "s" }
-                    )),
-            )
-            .child(
-                ui::icon_button("history", "history", 14., t).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.history_open = !this.history_open;
-                        cx.notify();
-                    },
-                )),
-            );
-
         let bar = div()
             .relative()
             .flex()
@@ -282,8 +184,7 @@ impl Workspace {
             .text_size(metrics::TEXT_SM)
             .child(strip)
             .child(add)
-            .child(div().flex_1().min_w(px(8.)))
-            .child(right);
+            .child(div().flex_1().min_w(px(8.)));
 
         let body: AnyElement = match ws.tabs.get(active).map(|t| &t.view) {
             Some(TabView::Chat(c)) => c.clone().into_any_element(),

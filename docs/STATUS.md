@@ -27,6 +27,8 @@ Crates are named `insyde-*` (the plan's `ide-*`).
   UI work on GPUI's executors.
 - **Shaders**: default feature `runtime-shaders` compiles Metal shaders at launch (~0.8 s) because
   the Metal toolchain isn't installed by default in Xcode 26. See README for the fast path.
+- **Session controls** (context meter, Hand off, agent count, history): in the top bar, not the
+  center tab strip as in the design (user request). Their popovers anchor under the buttons.
 
 ## Measured (M-series Mac, release)
 

@@ -1,9 +1,10 @@
-//! Top bar: brand, Project Brain controls, activity summary, cost, run, layout, theme, PR.
+//! Top bar: brand, Project Brain controls, the active agent's context meter / Hand off /
+//! history, activity summary, cost, run, layout, theme, PR.
 
 use super::{BrainState, Workspace};
 use crate::ui::{self, icon};
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, FontWeight, Window, div, px};
+use gpui::{Anchor, AnyElement, Context, FontWeight, Window, anchored, deferred, div, px};
 use insyde_theme::{Theme, metrics};
 
 impl Workspace {
@@ -131,6 +132,7 @@ impl Workspace {
                     .into_any_element()
             }
         };
+        let session = self.render_session_controls(t, cx);
         let run = self.run_command();
         let has_pr = self.wt().and_then(|w| w.pr.as_ref()).map(|p| p.number);
         let dark = t.is_dark();
@@ -170,6 +172,7 @@ impl Workspace {
             )
             .child(div().ml(px(2.)).child(brain))
             .child(div().flex_1())
+            .child(session)
             .child(
                 div()
                     .mr(px(6.))
@@ -237,6 +240,134 @@ impl Workspace {
             )
             .into_any_element()
     }
+}
+
+impl Workspace {
+    /// Context meter, Hand off, agent count and session history for the active
+    /// worktree's current tab, sized to the top bar's controls. The Hand off
+    /// and history popovers open anchored under their buttons.
+    fn render_session_controls(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let Some(agents) = self.wt().map(|ws| ws.tabs.len()) else {
+            return div().into_any_element();
+        };
+        let (used, size) = self
+            .active_chat()
+            .map(|c| c.read(cx).context_usage())
+            .unwrap_or((0, 200_000));
+        let pct = (used as f64 * 100. / size.max(1) as f64).min(100.) as f32;
+        let meter_color = if pct > 85. { t.err } else { t.ink_3 };
+        let handoff_pop = self
+            .handoff
+            .is_some()
+            .then(|| popover(self.render_handoff(t, cx)));
+        let history_pop = self
+            .history_open
+            .then(|| popover(self.render_history(t, cx)));
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(px(6.))
+            .whitespace_nowrap()
+            .pr(px(14.))
+            .mr(px(4.))
+            .border_r_1()
+            .border_color(t.line)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(7.))
+                    .h(metrics::CONTROL_H)
+                    .px(px(4.))
+                    .text_size(metrics::TEXT_XS)
+                    .child(
+                        div()
+                            .w(px(44.))
+                            .h(px(4.))
+                            .rounded(px(4.))
+                            .bg(t.line)
+                            .overflow_hidden()
+                            .child(
+                                div()
+                                    .h_full()
+                                    .rounded(px(4.))
+                                    .w(gpui::relative(pct / 100.))
+                                    .bg(meter_color),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(meter_color)
+                            .child(format!(
+                                "{} / {}",
+                                ui::fmt_tokens(used),
+                                ui::fmt_tokens(size)
+                            )),
+                    ),
+            )
+            .child(
+                div()
+                    .relative()
+                    .child(
+                        ui::button("handoff-btn", t)
+                            .when(self.handoff.is_some(), |d| d.bg(t.hover_2))
+                            .child(icon("handoff", 13., t.ink))
+                            .child("Hand off")
+                            .on_click(cx.listener(|this, _, w, cx| this.open_handoff(w, cx))),
+                    )
+                    .children(handoff_pop),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .h(px(22.))
+                    .px(px(8.))
+                    .rounded(px(4.))
+                    .bg(t.hover_2)
+                    .text_size(metrics::TEXT_XS)
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.ink_2)
+                    .child(format!(
+                        "{agents} agent{}",
+                        if agents == 1 { "" } else { "s" }
+                    )),
+            )
+            .child(
+                div()
+                    .relative()
+                    .child(
+                        ui::button("history", t)
+                            .w(metrics::CONTROL_H)
+                            .px_0()
+                            .justify_center()
+                            .child(icon("history", 15., t.ink))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.history_open = !this.history_open;
+                                this.handoff = None;
+                                cx.notify();
+                            })),
+                    )
+                    .children(history_pop),
+            )
+            .into_any_element()
+    }
+}
+
+/// Floats `content` under the bottom-right corner of its (relative) parent,
+/// painted above the rest of the window.
+fn popover(content: AnyElement) -> impl IntoElement {
+    div().absolute().right_0().bottom_0().child(
+        deferred(
+            anchored()
+                .anchor(Anchor::TopRight)
+                .snap_to_window_with_margin(px(8.))
+                .child(div().pt(px(6.)).child(content)),
+        )
+        .with_priority(1),
+    )
 }
 
 /// The filled, three-color brain glyph shown once a brain exists.
