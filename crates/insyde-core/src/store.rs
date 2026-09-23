@@ -183,6 +183,21 @@ impl Store {
         }
     }
 
+    /// All settings whose key starts with `prefix` (raw JSON values).
+    pub fn kv_prefix(&self, prefix: &str) -> Vec<(String, String)> {
+        let c = self.conn.lock();
+        let Ok(mut st) =
+            c.prepare("SELECT key,value FROM kv WHERE substr(key,1,length(?1))=?1 ORDER BY key")
+        else {
+            return vec![];
+        };
+        st.query_map(params![prefix], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })
+        .map(|it| it.filter_map(|x| x.ok()).collect())
+        .unwrap_or_default()
+    }
+
     // ---- sessions ----
     pub fn create_session(&self, worktree: &Path, agent: &str, title: &str) -> Result<i64> {
         let c = self.conn.lock();

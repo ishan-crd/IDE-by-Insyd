@@ -6,6 +6,7 @@ mod bottom;
 mod center;
 mod overlays;
 mod right;
+mod rpc;
 mod side;
 mod top;
 
@@ -312,6 +313,7 @@ impl Workspace {
             this.scan_project(i, cx);
             this.load_brain(i, cx);
         }
+        this.start_rpc(window, cx);
         // Refresh the active project's worktrees and PR state periodically.
         cx.spawn(async move |this, cx| {
             loop {
@@ -814,7 +816,7 @@ impl Workspace {
                         let title = s.read(cx).value().to_string();
                         this.new_wt = None;
                         if !title.trim().is_empty() {
-                            this.create_worktree(title, window, cx);
+                            this.create_worktree(title, None, cx);
                         }
                         cx.notify();
                     }
@@ -831,8 +833,18 @@ impl Workspace {
         cx.notify();
     }
 
-    fn create_worktree(&mut self, title: String, _window: &mut Window, cx: &mut Context<Self>) {
-        let Some(ps) = self.project() else { return };
+    pub(crate) fn create_worktree(
+        &mut self,
+        title: String,
+        reply: Option<insyde_core::rpc::Call>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(ps) = self.project() else {
+            if let Some(r) = reply {
+                r.err("no project open");
+            }
+            return;
+        };
         let (root, base, i) = (ps.project.root.clone(), ps.project.base.clone(), self.p);
         let branch = insyde_core::git::slugify_branch(&title);
         self.toast(format!("Creating worktree {branch}…"), false, cx);
@@ -853,8 +865,16 @@ impl Workspace {
                         ps.active_wt = usize::MAX; // select after scan via saved path
                     }
                     this.scan_project(i, cx);
+                    if let Some(r) = reply {
+                        r.ok(serde_json::json!({ "path": path, "branch": branch }));
+                    }
                 }
-                Err(e) => this.toast(format!("Couldn't create worktree: {e}"), true, cx),
+                Err(e) => {
+                    if let Some(r) = reply {
+                        r.err(e.to_string());
+                    }
+                    this.toast(format!("Couldn't create worktree: {e}"), true, cx)
+                }
             });
         })
         .detach();
@@ -1122,6 +1142,12 @@ impl Workspace {
         env.insert(
             "INSYDE_WORKTREE".into(),
             path.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "INSYDE_SOCKET".into(),
+            insyde_core::rpc::socket_path()
+                .to_string_lossy()
+                .into_owned(),
         );
         env
     }

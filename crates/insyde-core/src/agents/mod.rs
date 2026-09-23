@@ -230,6 +230,13 @@ pub fn augmented_path() -> String {
     let mut parts: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect())
         .unwrap_or_default();
+    // Our own binaries (the `insy` CLI ships next to the app) come first.
+    if let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(PathBuf::from))
+    {
+        parts.insert(0, dir);
+    }
     if let Some(h) = dirs::home_dir() {
         for d in [
             ".local/bin",

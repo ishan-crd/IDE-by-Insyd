@@ -6,5 +6,6 @@ pub mod brain;
 pub mod forge;
 pub mod git;
 pub mod project;
+pub mod rpc;
 pub mod store;
 pub mod terminal;

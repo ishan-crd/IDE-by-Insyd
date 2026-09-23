@@ -27,6 +27,19 @@ agent persistent context about the repository's main branch.
   content search, one-click draft PR.
 - Light and dark themes from the design tokens; all regions resizable and persisted.
 
+## Command line
+
+`insy` (built next to the app) controls a running InsyDE; agents inside InsyDE can use it too.
+
+```sh
+insy status                         # project, worktree, open agents
+insy worktree create "fix login"    # new task worktree
+insy agent new codex --prompt "..." # start an agent (prints its id)
+insy agent send 3 "run the tests" && insy agent wait 3
+insy brain search "auth refresh"
+insy coord set plan "..."           # shared state for agent teams
+```
+
 ## Build and run (macOS)
 
 ```sh

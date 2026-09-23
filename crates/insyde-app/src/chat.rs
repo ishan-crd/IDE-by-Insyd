@@ -74,6 +74,8 @@ pub struct ChatView {
     pub unseen: bool,
     pub others: String,
     last_running: bool,
+    /// A prompt was sent and its turn hasn't finished yet (covers agent start-up).
+    awaiting: bool,
     focus: FocusHandle,
     _subs: Vec<Subscription>,
 }
@@ -179,6 +181,7 @@ impl ChatView {
             unseen: false,
             others: String::new(),
             last_running: false,
+            awaiting: false,
             focus: cx.focus_handle(),
             _subs: subs,
         };
@@ -200,10 +203,20 @@ impl ChatView {
 
     /// Pull new state from the session into the list.
     fn sync(&mut self, cx: &mut Context<Self>) {
-        let (n, version, running, has_perm) = {
+        let (n, version, running, has_perm, failed) = {
             let t = self.transcript.lock();
-            (t.items.len(), t.version, t.running, t.permission.is_some())
+            (
+                t.items.len(),
+                t.version,
+                t.running,
+                t.permission.is_some(),
+                t.error.is_some(),
+            )
         };
+        // The turn we were waiting for has finished (or the agent failed to start).
+        if (self.last_running && !running) || failed {
+            self.awaiting = false;
+        }
         if version == self.version {
             return;
         }
@@ -272,7 +285,7 @@ impl ChatView {
     }
 
     pub fn is_running(&self) -> bool {
-        self.transcript.lock().running
+        self.awaiting || self.transcript.lock().running
     }
 
     pub fn needs_attention(&self) -> bool {
@@ -306,6 +319,20 @@ impl ChatView {
         let t = self.transcript.lock();
         let (paths, a, r) = t.edit_totals();
         (t.summary_text(24_000), t.open_tasks(), paths, a, r)
+    }
+
+    /// The agent's most recent reply (for `insy agent read` / `wait`).
+    pub fn last_reply(&self) -> String {
+        let t = self.transcript.lock();
+        t.items
+            .iter()
+            .rev()
+            .find_map(|i| match i {
+                Item::Agent { text } => Some(text.clone()),
+                Item::Notice { text, error: true } => Some(format!("[error] {text}")),
+                _ => None,
+            })
+            .unwrap_or_default()
     }
 
     /// Send `text` as if typed into the composer (used for review comments and teams).
@@ -352,6 +379,7 @@ impl ChatView {
         blocks.push(Block::Text(text));
         if let Some(session) = &self.session {
             session.prompt(blocks);
+            self.awaiting = true;
         }
         self.composer
             .update(cx, |c, cx| c.set_value("", window, cx));

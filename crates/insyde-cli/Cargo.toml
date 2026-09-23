@@ -1,0 +1,15 @@
+[package]
+name = "insyde-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "insy: command-line control for a running InsyDE (worktrees, agents, brain, team state)."
+
+[[bin]]
+name = "insy"
+path = "src/main.rs"
+
+[dependencies]
+insyde-core.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

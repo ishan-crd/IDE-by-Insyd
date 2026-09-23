@@ -503,7 +503,13 @@ async fn run(
         which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?;
     let mut config = AcpAgentConfig::new(program)
         .args(cmd.args.iter().copied())
-        .env("PATH", augmented_path_blocking());
+        .env("PATH", augmented_path_blocking())
+        // Let agents coordinate through the `insy` CLI.
+        .env(
+            "INSYDE_SOCKET",
+            crate::rpc::socket_path().to_string_lossy().to_string(),
+        )
+        .env("INSYDE_WORKTREE", ctx.cwd.to_string_lossy().to_string());
     if let Some(h) = dirs::home_dir() {
         config = config.env("HOME", h.to_string_lossy().to_string());
     }
