@@ -431,7 +431,7 @@ impl Hub {
             "script" => {
                 let wt = path("worktree")?;
                 Ok(match crate::project::run_command(&wt) {
-                    Some((label, cmd)) => json!({ "label": label, "command": cmd }),
+                    Some((cmd, label)) => json!({ "label": label, "command": cmd }),
                     None => Value::Null,
                 })
             }

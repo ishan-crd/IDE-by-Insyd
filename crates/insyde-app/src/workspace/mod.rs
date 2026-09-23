@@ -223,6 +223,8 @@ pub struct Workspace {
     pub menu_open: bool,
     pub handoff: Option<Handoff>,
     pub history_open: bool,
+    /// The Run button's menu, and its "any command" input.
+    pub run_menu: Option<Entity<InputState>>,
     pub brain_view: Option<Entity<BrainView>>,
     pub new_wt: Option<Entity<InputState>>,
     pub search: Entity<InputState>,
@@ -308,6 +310,7 @@ impl Workspace {
             menu_open: false,
             handoff: None,
             history_open: false,
+            run_menu: None,
             brain_view: None,
             new_wt: None,
             search,
@@ -743,7 +746,7 @@ impl Workspace {
             let files = insyde_core::git::changed_files(&p2, &base);
             let ab = insyde_core::git::ahead_behind(&p2);
             let pr = insyde_core::forge::pr_for(&p2);
-            let run = insyde_core::project::run_command(&p2);
+            let run = insyde_core::project::detect_run(&p2);
             (files, pr, ab, run)
         });
         cx.spawn(async move |this, cx| {
@@ -1316,8 +1319,77 @@ impl Workspace {
 
     /// Best "run" command for the project, plus its button label.
     /// Cached run command of the active worktree (detected in the background).
+    /// The Run button's `(command, label)`: the setting, else the detected one.
     pub fn run_command(&self) -> Option<(String, String)> {
+        insyde_core::project::with_override(self.detected_run())
+    }
+
+    /// What the active worktree's package manager or build tool would run.
+    pub fn detected_run(&self) -> Option<(String, String)> {
         self.wt().and_then(|w| w.run.clone())
+    }
+
+    /// Open or close the Run button's menu; the input starts focused.
+    pub fn toggle_run_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.run_menu.take().is_some() {
+            cx.notify();
+            return;
+        }
+        self.handoff = None;
+        self.history_open = false;
+        let input =
+            cx.new(|cx| InputState::new(window, cx).placeholder("Any command, e.g. pnpm test"));
+        self._subs.push(
+            cx.subscribe_in(&input, window, |this, s, ev: &InputEvent, _, cx| {
+                if let InputEvent::PressEnter { .. } = ev {
+                    let cmd = s.read(cx).value().trim().to_string();
+                    if !cmd.is_empty() {
+                        this.save_quick(&cmd);
+                        this.run_now(cmd, cx);
+                    }
+                }
+            }),
+        );
+        input.update(cx, |st, cx| st.focus(window, cx));
+        self.run_menu = Some(input);
+        cx.notify();
+    }
+
+    /// Run `cmd` in a new terminal and close the Run menu.
+    pub fn run_now(&mut self, cmd: String, cx: &mut Context<Self>) {
+        self.run_menu = None;
+        self.add_pane(Some(cmd), cx);
+    }
+
+    /// Remember `cmd` at the top of the Run menu's list.
+    pub fn save_quick(&mut self, cmd: &str) {
+        insyde_core::settings::update(|s| {
+            let mut list = s.quick_list();
+            list.retain(|c| c != cmd);
+            list.insert(0, cmd.to_string());
+            list.truncate(12);
+            s.quick_commands = list.join("\n");
+        });
+    }
+
+    pub fn remove_quick(&mut self, cmd: &str, cx: &mut Context<Self>) {
+        insyde_core::settings::update(|s| {
+            let list: Vec<String> = s.quick_list().into_iter().filter(|c| c != cmd).collect();
+            s.quick_commands = list.join("\n");
+        });
+        cx.notify();
+    }
+
+    /// Make `cmd` the Run button's command; the detected command clears the override.
+    pub fn set_run_button(&mut self, cmd: &str, cx: &mut Context<Self>) {
+        let detected = self.detected_run().map(|r| r.0);
+        let v = if detected.as_deref() == Some(cmd) {
+            String::new()
+        } else {
+            cmd.to_string()
+        };
+        insyde_core::settings::update(|s| s.run_command = v);
+        cx.notify();
     }
 
     /// A dev-server URL for the "Browser" entry.
@@ -1949,6 +2021,12 @@ impl Workspace {
 
     fn on_key(&mut self, e: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let k = &e.keystroke;
+        if self.run_menu.is_some() && k.key == "escape" {
+            self.run_menu = None;
+            cx.notify();
+            cx.stop_propagation();
+            return;
+        }
         if self.menu_open {
             if k.key == "escape" {
                 self.menu_open = false;

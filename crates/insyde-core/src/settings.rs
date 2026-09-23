@@ -88,6 +88,10 @@ pub struct Settings {
     // Terminal
     /// Terminals opened in the bottom panel when a worktree is first shown.
     pub default_terminals: u32,
+    /// Command behind the top bar's Run button. Empty detects one per worktree.
+    pub run_command: String,
+    /// Commands offered in the Run menu, one per line.
+    pub quick_commands: String,
     pub term_font: String,
     pub term_font_size: f32,
     pub term_line_height: f32,
@@ -150,6 +154,8 @@ impl Default for Settings {
             pr_draft: true,
             confirm_worktree_delete: true,
             default_terminals: 3,
+            run_command: String::new(),
+            quick_commands: String::new(),
             term_font: "Menlo".into(),
             term_font_size: 11.5,
             term_line_height: 1.7,
@@ -188,6 +194,16 @@ impl Settings {
             .filter(|(k, _)| {
                 !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
             })
+            .collect()
+    }
+
+    /// Commands offered in the Run menu.
+    pub fn quick_list(&self) -> Vec<String> {
+        self.quick_commands
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
             .collect()
     }
 

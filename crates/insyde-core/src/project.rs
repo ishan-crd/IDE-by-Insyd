@@ -188,9 +188,36 @@ pub fn detect_stack(root: &Path) -> String {
     "Repository".into()
 }
 
-/// The project's "run" command and its button label (`pnpm run dev`, `cargo run`…).
-/// Works for local and remote worktrees; blocking.
+/// The Run button's command and label: the `run_command` setting if set,
+/// otherwise the detected one. Blocking.
 pub fn run_command(path: &Path) -> Option<(String, String)> {
+    with_override(detect_run(path))
+}
+
+/// Applies the `run_command` setting over a detected `(command, label)`.
+pub fn with_override(detected: Option<(String, String)>) -> Option<(String, String)> {
+    let custom = crate::settings::get().run_command.trim().to_string();
+    if custom.is_empty() {
+        detected
+    } else {
+        let label = run_label(&custom);
+        Some((custom, label))
+    }
+}
+
+/// Button label for a command: "Run" plus its program (`Run pnpm`, `Run cargo`).
+pub fn run_label(cmd: &str) -> String {
+    let prog = cmd
+        .split_whitespace()
+        .find(|w| !w.contains('='))
+        .unwrap_or(cmd);
+    let prog = prog.rsplit('/').next().unwrap_or(prog);
+    format!("Run {prog}")
+}
+
+/// The project's own run command and its button label (`pnpm run dev` → `Run pnpm`),
+/// from its package manager or build tool. Works for local and remote worktrees; blocking.
+pub fn detect_run(path: &Path) -> Option<(String, String)> {
     let names: Vec<String> = crate::remote::list_dir(path)
         .into_iter()
         .map(|(n, _)| n)
@@ -215,12 +242,18 @@ pub fn run_command(path: &Path) -> Option<(String, String)> {
         };
         for s in ["dev", "start", "serve"] {
             if pkg.contains(&format!("\"{s}\":")) {
-                return Some((format!("{pm} run {s}"), format!("Run {s}")));
+                return Some((format!("{pm} run {s}"), format!("Run {pm}")));
             }
         }
     }
     if has("Cargo.toml") {
         return Some(("cargo run".into(), "Run cargo".into()));
+    }
+    if read("deno.json")
+        .or_else(|| read("deno.jsonc"))
+        .is_some_and(|d| d.contains("\"dev\":"))
+    {
+        return Some(("deno task dev".into(), "Run deno".into()));
     }
     if has("go.mod") {
         return Some(("go run .".into(), "Run go".into()));
@@ -229,4 +262,17 @@ pub fn run_command(path: &Path) -> Option<(String, String)> {
         return Some(("make run".into(), "Run make".into()));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_label;
+
+    #[test]
+    fn run_label_names_the_program() {
+        assert_eq!(run_label("pnpm run dev"), "Run pnpm");
+        assert_eq!(run_label("cargo run"), "Run cargo");
+        assert_eq!(run_label("PORT=3000 npm start"), "Run npm");
+        assert_eq!(run_label("./node_modules/.bin/vite"), "Run vite");
+    }
 }

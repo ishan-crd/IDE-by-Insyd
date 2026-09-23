@@ -299,6 +299,10 @@ impl Workspace {
             root = root.child(scrim("hist-scrim", cx, |this| this.history_open = false));
         }
 
+        if self.run_menu.is_some() {
+            root = root.child(scrim("run-scrim", cx, |this| this.run_menu = None));
+        }
+
         if let Some(bv) = &self.brain_view {
             root = root.child(bv.clone());
         }

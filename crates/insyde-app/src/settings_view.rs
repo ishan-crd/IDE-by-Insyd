@@ -71,7 +71,7 @@ impl Cat {
             Cat::Agents => "Which agent starts, how it's approved, and how it's launched.",
             Cat::Brain => "How much project context every agent receives.",
             Cat::Worktrees => "Where task worktrees live and what happens when one is created.",
-            Cat::Terminal => "How many open, font, scrollback, shell and keyboard behavior.",
+            Cat::Terminal => "How many open, the Run button, font, scrollback, shell and keys.",
             Cat::Editor => "The file editor in the right panel.",
             Cat::Alerts => "When InsyDE should tap you on the shoulder.",
             Cat::Web => {
@@ -92,6 +92,7 @@ const TEXT_KEYS: &[&str] = &[
     "copy_into_worktrees",
     "term_font",
     "shell",
+    "run_command",
     "web_port",
 ];
 
@@ -103,6 +104,7 @@ fn text_value(s: &Settings, key: &str) -> String {
         "copy_into_worktrees" => s.copy_into_worktrees.clone(),
         "term_font" => s.term_font.clone(),
         "shell" => s.shell.clone(),
+        "run_command" => s.run_command.clone(),
         "web_port" => s.web_port.to_string(),
         k => k
             .strip_prefix("cmd:")
@@ -119,6 +121,7 @@ fn set_text(s: &mut Settings, key: &str, v: String) {
         "copy_into_worktrees" => s.copy_into_worktrees = v,
         "term_font" => s.term_font = v,
         "shell" => s.shell = v,
+        "run_command" => s.run_command = v,
         "web_port" => {
             if let Ok(p) = v.trim().parse::<u16>()
                 && p >= 1024
@@ -144,6 +147,7 @@ pub struct SettingsView {
     only_changed: bool,
     inputs: HashMap<String, Entity<InputState>>,
     env: Entity<TextareaState>,
+    quick: Entity<TextareaState>,
     note: Option<String>,
     store: insyde_core::store::Store,
     _subs: Vec<Subscription>,
@@ -178,6 +182,7 @@ impl SettingsView {
                 "worktree_root" => "../.insyde-worktrees/{repo}  (default)".to_string(),
                 "setup_command" => "e.g. pnpm install".to_string(),
                 "shell" => "$SHELL (default)".to_string(),
+                "run_command" => "Detected per worktree (default)".to_string(),
                 "web_port" => "7788".to_string(),
                 k => k
                     .strip_prefix("cmd:")
@@ -216,6 +221,20 @@ impl SettingsView {
                 this.changed(cx);
             }
         }));
+        let quick = cx.new(|cx| {
+            let mut st = TextareaState::new(window, cx)
+                .auto_grow(3, 8)
+                .placeholder("One command per line, e.g. pnpm test");
+            st.set_value(s.quick_commands.clone(), window, cx);
+            st
+        });
+        subs.push(cx.subscribe(&quick, |this, st, ev: &InputEvent, cx| {
+            if matches!(ev, InputEvent::Change) {
+                let v = st.read(cx).value().to_string();
+                settings::update(|s| s.quick_commands = v);
+                this.changed(cx);
+            }
+        }));
         search.update(cx, |st, cx| st.focus(window, cx));
         // Keep the Web access page live (tunnel link, connected browsers).
         cx.spawn(async move |this, cx| {
@@ -240,6 +259,7 @@ impl SettingsView {
             only_changed: false,
             inputs,
             env,
+            quick,
             note: None,
             store,
             _subs: subs,
@@ -278,6 +298,10 @@ impl SettingsView {
         if self.env.read(cx).value().as_ref() != s.agent_env {
             let v = s.agent_env.clone();
             self.env.update(cx, |st, cx| st.set_value(v, window, cx));
+        }
+        if self.quick.read(cx).value().as_ref() != s.quick_commands {
+            let v = s.quick_commands.clone();
+            self.quick.update(cx, |st, cx| st.set_value(v, window, cx));
         }
     }
 }
@@ -800,6 +824,29 @@ impl SettingsView {
                 t,
                 cx
             )
+        );
+        tile!(
+            Cat::Terminal,
+            "Run button",
+            "Command the top bar's Run button starts in a new terminal. Empty detects it from the worktree: pnpm, bun, yarn, npm, deno, cargo, go or make.",
+            s.run_command != d.run_command,
+            Some(|s: &mut Settings| s.run_command.clear()),
+            self.text("run_command")
+        );
+        tile!(
+            Cat::Terminal,
+            "Quick commands",
+            "Listed in the Run button's menu for one-click runs. Commands typed there are added here.",
+            s.quick_commands != d.quick_commands,
+            Some(|s: &mut Settings| s.quick_commands.clear()),
+            div()
+                .bg(t.panel_2)
+                .border_1()
+                .border_color(t.field_border)
+                .rounded(px(6.))
+                .p(px(4.))
+                .child(Textarea::new(&self.quick).appearance(false))
+                .into_any_element()
         );
         tile!(
             Cat::Terminal,

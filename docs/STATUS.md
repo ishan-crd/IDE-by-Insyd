@@ -29,6 +29,9 @@ Crates are named `insyde-*` (the plan's `ide-*`).
   the Metal toolchain isn't installed by default in Xcode 26. See README for the fast path.
 - **Session controls** (context meter, Hand off, agent count, history): in the top bar, not the
   center tab strip as in the design (user request). Their popovers anchor under the buttons.
+- **Top bar right side**: no Create PR button (the Checks panel still has it); the Run split
+  button takes its place. Run is labelled by the detected tool (`Run pnpm`, `Run cargo`), can be
+  overridden in Settings > Terminal, and its menu runs saved quick commands or any typed one.
 
 ## Measured (M-series Mac, release)
 

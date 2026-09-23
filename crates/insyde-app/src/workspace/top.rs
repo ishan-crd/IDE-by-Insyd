@@ -1,10 +1,12 @@
 //! Top bar: brand, Project Brain controls, the active agent's context meter / Hand off /
-//! history, activity summary, cost, run, layout, theme, PR.
+//! history, activity summary, cost, layout, theme, and the Run button with its menu.
 
 use super::{BrainState, Workspace};
 use crate::ui::{self, icon};
 use gpui::prelude::*;
-use gpui::{Anchor, AnyElement, Context, FontWeight, Window, anchored, deferred, div, px};
+use gpui::{
+    Anchor, AnyElement, Context, FontWeight, SharedString, Window, anchored, deferred, div, px,
+};
 use insyde_theme::{Theme, metrics};
 
 impl Workspace {
@@ -133,8 +135,7 @@ impl Workspace {
             }
         };
         let session = self.render_session_controls(t, cx);
-        let run = self.run_command();
-        let has_pr = self.wt().and_then(|w| w.pr.as_ref()).map(|p| p.number);
+        let run_btn = self.render_run_button(t, cx);
         let dark = t.is_dark();
         div()
             .flex()
@@ -198,22 +199,9 @@ impl Workspace {
                     .text_color(t.ink_2)
                     .child(format!("${cost:.2}")),
             )
-            .when_some(run, |d, (cmd, label)| {
-                d.child(
-                    ui::button("run", t)
-                        .child(icon("play", 12., t.ink))
-                        .child(label)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.add_pane(Some(cmd.clone()), cx);
-                        })),
-                )
-            })
             .child(
-                ui::button("layout", t)
-                    .w(metrics::CONTROL_H)
-                    .px_0()
-                    .justify_center()
-                    .child(icon("layout", 15., t.ink))
+                ui::icon_button("layout", "layout", 15., t)
+                    .size(metrics::CONTROL_H)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.prefs.show_right = !this.prefs.show_right;
                         this.save_prefs();
@@ -221,23 +209,11 @@ impl Workspace {
                     })),
             )
             .child(
-                ui::button("theme", t)
-                    .w(metrics::CONTROL_H)
-                    .px_0()
-                    .justify_center()
-                    .child(icon(if dark { "sun" } else { "moon" }, 15., t.ink))
+                ui::icon_button("theme", if dark { "sun" } else { "moon" }, 15., t)
+                    .size(metrics::CONTROL_H)
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
             )
-            .child(
-                ui::primary_button("create-pr", t)
-                    .ml(px(2.))
-                    .child(icon("pr", 13., t.on_primary))
-                    .child(match has_pr {
-                        Some(n) => format!("Open PR #{n}"),
-                        None => "Create PR".into(),
-                    })
-                    .on_click(cx.listener(|this, _, _, cx| this.create_or_open_pr(cx))),
-            )
+            .child(run_btn)
             .into_any_element()
     }
 }
@@ -351,6 +327,242 @@ impl Workspace {
                             })),
                     )
                     .children(history_pop),
+            )
+            .into_any_element()
+    }
+}
+
+impl Workspace {
+    /// Run split button: the main part runs the Run command in a new terminal,
+    /// the chevron opens the Run menu.
+    fn render_run_button(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let run = self.run_command();
+        let label = run
+            .as_ref()
+            .map(|r| r.1.clone())
+            .unwrap_or_else(|| "Run…".into());
+        let menu = self
+            .run_menu
+            .is_some()
+            .then(|| popover(self.render_run_menu(t, cx)));
+        let hover = t.primary_hover;
+        div()
+            .relative()
+            .flex_none()
+            .ml(px(2.))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .h(metrics::CONTROL_H)
+                    .rounded(metrics::RADIUS)
+                    .bg(t.primary)
+                    .text_color(t.on_primary)
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(
+                        div()
+                            .id("run")
+                            .flex()
+                            .items_center()
+                            .gap(px(7.))
+                            .h_full()
+                            .pl(px(12.))
+                            .pr(px(10.))
+                            .rounded_l(metrics::RADIUS)
+                            .cursor_pointer()
+                            .hover(move |s| s.bg(hover))
+                            .child(icon("play", 12., t.on_primary))
+                            .child(label)
+                            .on_click(cx.listener(move |this, _, w, cx| match &run {
+                                Some((cmd, _)) => this.run_now(cmd.clone(), cx),
+                                None => this.toggle_run_menu(w, cx),
+                            })),
+                    )
+                    .child(div().w(px(1.)).h(px(16.)).bg(t.on_primary.opacity(0.2)))
+                    .child(
+                        div()
+                            .id("run-menu")
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .h_full()
+                            .w(px(26.))
+                            .rounded_r(metrics::RADIUS)
+                            .cursor_pointer()
+                            .hover(move |s| s.bg(hover))
+                            .child(icon("chevron-down", 12., t.on_primary))
+                            .on_click(cx.listener(|this, _, w, cx| this.toggle_run_menu(w, cx))),
+                    ),
+            )
+            .children(menu)
+            .into_any_element()
+    }
+
+    /// Commands to run in a new terminal: the detected one, the Run setting,
+    /// saved quick commands, and an input for anything else.
+    fn render_run_menu(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let Some(input) = self.run_menu.clone() else {
+            return div().into_any_element();
+        };
+        let current = self.run_command().map(|r| r.0);
+        let detected = self.detected_run().map(|r| r.0);
+        let custom = insyde_core::settings::get().run_command.trim().to_string();
+        // (command, saved in the quick list)
+        let quick = insyde_core::settings::get().quick_list();
+        let mut rows: Vec<(String, bool)> = vec![];
+        for c in detected
+            .iter()
+            .chain(Some(&custom).filter(|c| !c.is_empty()))
+            .chain(quick.iter())
+        {
+            if !rows.iter().any(|r| &r.0 == c) {
+                rows.push((c.clone(), quick.contains(c)));
+            }
+        }
+        let mut list = div().flex().flex_col().gap(px(1.));
+        if rows.is_empty() {
+            list = list.child(
+                div()
+                    .px(px(8.))
+                    .py(px(6.))
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child("Nothing detected here. Type a command below."),
+            );
+        }
+        for (i, (cmd, saved)) in rows.into_iter().enumerate() {
+            let is_current = current.as_deref() == Some(cmd.as_str());
+            let is_detected = detected.as_deref() == Some(cmd.as_str());
+            let group = SharedString::from(format!("rm-{i}"));
+            let (hover, ink_2, ink) = (t.hover, t.ink_2, t.ink);
+            let (c_run, c_def, c_del) = (cmd.clone(), cmd.clone(), cmd.clone());
+            list = list.child(
+                div()
+                    .id(SharedString::from(format!("rm-row-{i}")))
+                    .group(group.clone())
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .h(px(30.))
+                    .px(px(8.))
+                    .rounded(metrics::RADIUS)
+                    .cursor_pointer()
+                    .hover(move |s| s.bg(hover))
+                    .child(icon("play", 10., t.ink_3))
+                    .child(
+                        ui::trunc(cmd.clone())
+                            .flex_1()
+                            .font_family(metrics::MONO_FONT)
+                            .text_size(metrics::TEXT_SM)
+                            .text_color(t.ink),
+                    )
+                    .when(is_detected && !is_current, |d| {
+                        d.child(
+                            div()
+                                .text_size(metrics::TEXT_XS)
+                                .text_color(t.ink_faint)
+                                .child("detected"),
+                        )
+                    })
+                    .child(if is_current {
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child("Run button")
+                            .into_any_element()
+                    } else {
+                        div()
+                            .id(SharedString::from(format!("rm-def-{i}")))
+                            .px(px(4.))
+                            .rounded(px(4.))
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(gpui::transparent_black())
+                            .group_hover(group.clone(), move |s| s.text_color(ink_2))
+                            .hover(move |s| s.text_color(ink))
+                            .child("Make default")
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.stop_propagation();
+                                this.set_run_button(&c_def, cx);
+                            }))
+                            .into_any_element()
+                    })
+                    .when(saved, |d| {
+                        d.child(
+                            div()
+                                .id(SharedString::from(format!("rm-del-{i}")))
+                                .size(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(4.))
+                                .text_color(gpui::transparent_black())
+                                .group_hover(group.clone(), move |s| s.text_color(ink_2))
+                                .hover(move |s| s.text_color(ink))
+                                .child("×")
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    cx.stop_propagation();
+                                    this.remove_quick(&c_del, cx);
+                                })),
+                        )
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| this.run_now(c_run.clone(), cx))),
+            );
+        }
+        let hover = t.hover;
+        div()
+            .w(px(340.))
+            .p(px(4.))
+            .bg(t.panel)
+            .border_1()
+            .border_color(t.line)
+            .rounded(metrics::RADIUS_LG)
+            .shadow(t.pop_shadow(true))
+            .occlude()
+            .child(
+                div()
+                    .px(px(8.))
+                    .pt(px(6.))
+                    .pb(px(4.))
+                    .text_size(metrics::TEXT_XS)
+                    .text_color(t.ink_3)
+                    .child("Run in a new terminal"),
+            )
+            .child(list)
+            .child(
+                div()
+                    .mt(px(4.))
+                    .px(px(4.))
+                    .pt(px(8.))
+                    .pb(px(2.))
+                    .border_t_1()
+                    .border_color(t.line_soft)
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .child(gpui_component::input::Input::new(&input).h(px(28.)))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .px(px(4.))
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child("Enter runs it and saves it here")
+                            .child(
+                                div()
+                                    .id("rm-settings")
+                                    .ml_auto()
+                                    .px(px(4.))
+                                    .rounded(px(4.))
+                                    .cursor_pointer()
+                                    .hover(move |s| s.bg(hover))
+                                    .child("Edit in Settings")
+                                    .on_click(cx.listener(|this, _, w, cx| {
+                                        this.run_menu = None;
+                                        this.open_settings(w, cx);
+                                    })),
+                            ),
+                    ),
             )
             .into_any_element()
     }
