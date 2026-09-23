@@ -518,10 +518,28 @@ async fn run(
     ctx: Ctx,
     rx: flume::Receiver<Command>,
 ) -> anyhow::Result<()> {
-    let program =
-        which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?;
+    let remote = crate::remote::split(&ctx.cwd);
+    // Remote worktrees: run the agent on the host, speaking ACP over the SSH pipe.
+    let (program, args): (PathBuf, Vec<String>) = match &remote {
+        Some((host, dir)) => {
+            let (p, a) = crate::remote::command_parts(
+                host,
+                &crate::remote::script_in(dir, cmd.program, cmd.args),
+                false,
+            );
+            (PathBuf::from(p), a)
+        }
+        None => (
+            which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?,
+            cmd.args.iter().map(|s| s.to_string()).collect(),
+        ),
+    };
+    let session_cwd = remote
+        .as_ref()
+        .map(|(_, d)| PathBuf::from(d))
+        .unwrap_or_else(|| ctx.cwd.clone());
     let mut config = AcpAgentConfig::new(program)
-        .args(cmd.args.iter().copied())
+        .args(args)
         .env("PATH", augmented_path_blocking())
         // Let agents coordinate through the `insy` CLI.
         .env(
@@ -648,7 +666,8 @@ async fn run(
         )
         .connect_with(agent, move |conn: ConnectionTo<Agent>| async move {
             let caps = acp::ClientCapabilities::new()
-                .fs(acp::FileSystemCapabilities::new().read_text_file(true).write_text_file(true))
+                // Remote agents use their own file tools on the host.
+                .fs(acp::FileSystemCapabilities::new().read_text_file(remote.is_none()).write_text_file(remote.is_none()))
                 .terminal(false);
             let init = conn
                 .send_request(
@@ -663,7 +682,7 @@ async fn run(
             let mut session_id: Option<acp::SessionId> = None;
             if let (Some(id), true) = (resume.clone(), init.agent_capabilities.load_session) {
                 replaying.store(true, std::sync::atomic::Ordering::Release);
-                let r = conn.send_request(acp::LoadSessionRequest::new(id.clone(), ctx.cwd.clone())).block_task().await;
+                let r = conn.send_request(acp::LoadSessionRequest::new(id.clone(), session_cwd.clone())).block_task().await;
                 replaying.store(false, std::sync::atomic::Ordering::Release);
                 if let Ok(resp) = r {
                     session_id = Some(acp::SessionId::new(id));
@@ -681,7 +700,7 @@ async fn run(
             let sid = match session_id {
                 Some(s) => s,
                 None => {
-                    let resp = conn.send_request(acp::NewSessionRequest::new(ctx.cwd.clone())).block_task().await?;
+                    let resp = conn.send_request(acp::NewSessionRequest::new(session_cwd.clone())).block_task().await?;
                     if let Some((store, id)) = &ctx.persist {
                         store.update_session(*id, None, Some(&resp.session_id.0), None, None);
                     }

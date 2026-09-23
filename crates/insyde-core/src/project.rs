@@ -51,7 +51,12 @@ impl Project {
             root: row.path.clone(),
             name: row.name.clone(),
             base: row.base.clone(),
-            stack: detect_stack(&row.path),
+            // Remote stacks are detected during the (background) scan.
+            stack: if crate::remote::is_remote(&row.path) {
+                "Remote".into()
+            } else {
+                detect_stack(&row.path)
+            },
             worktrees: vec![],
         }
     }
@@ -76,6 +81,9 @@ impl Project {
         let Ok(entries) = git::list_worktrees(&self.root) else {
             return;
         };
+        if crate::remote::is_remote(&self.root) {
+            self.stack = format!("{} · SSH", detect_stack(&self.root));
+        }
         self.worktrees = entries
             .into_iter()
             .map(|e| {
@@ -119,7 +127,30 @@ impl Worktree {
 }
 
 pub fn detect_stack(root: &Path) -> String {
-    let read = |f: &str| std::fs::read_to_string(root.join(f)).ok();
+    let remote = crate::remote::is_remote(root);
+    // One listing instead of a probe per manifest when the repo is remote.
+    let names: Vec<String> = if remote {
+        crate::remote::list_dir(root)
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect()
+    } else {
+        vec![]
+    };
+    let has = |f: &str| {
+        if remote {
+            names.iter().any(|n| n == f)
+        } else {
+            root.join(f).exists()
+        }
+    };
+    let read = |f: &str| {
+        if has(f) {
+            crate::remote::read_to_string(&root.join(f)).ok()
+        } else {
+            None
+        }
+    };
     if let Some(pkg) = read("package.json") {
         for (dep, label) in [
             ("\"expo\"", "Expo"),
@@ -150,9 +181,52 @@ pub fn detect_stack(root: &Path) -> String {
         ("Gemfile", "Ruby"),
         ("mix.exs", "Elixir"),
     ] {
-        if root.join(f).exists() {
+        if has(f) {
             return label.into();
         }
     }
     "Repository".into()
+}
+
+/// The project's "run" command and its button label (`pnpm run dev`, `cargo run`…).
+/// Works for local and remote worktrees; blocking.
+pub fn run_command(path: &Path) -> Option<(String, String)> {
+    let names: Vec<String> = crate::remote::list_dir(path)
+        .into_iter()
+        .map(|(n, _)| n)
+        .collect();
+    let has = |f: &str| names.iter().any(|n| n == f);
+    let read = |f: &str| {
+        if has(f) {
+            crate::remote::read_to_string(&path.join(f)).ok()
+        } else {
+            None
+        }
+    };
+    if let Some(pkg) = read("package.json") {
+        let pm = if has("pnpm-lock.yaml") {
+            "pnpm"
+        } else if has("bun.lockb") || has("bun.lock") {
+            "bun"
+        } else if has("yarn.lock") {
+            "yarn"
+        } else {
+            "npm"
+        };
+        for s in ["dev", "start", "serve"] {
+            if pkg.contains(&format!("\"{s}\":")) {
+                return Some((format!("{pm} run {s}"), format!("Run {s}")));
+            }
+        }
+    }
+    if has("Cargo.toml") {
+        return Some(("cargo run".into(), "Run cargo".into()));
+    }
+    if has("go.mod") {
+        return Some(("go run .".into(), "Run go".into()));
+    }
+    if read("Makefile").is_some_and(|m| m.contains("\nrun:") || m.starts_with("run:")) {
+        return Some(("make run".into(), "Run make".into()));
+    }
+    None
 }

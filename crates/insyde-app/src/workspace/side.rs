@@ -84,8 +84,16 @@ impl Workspace {
                     .items_center()
                     .gap(px(4.))
                     .child(
-                        ui::icon_button("add-project", "folder", 14., t)
-                            .on_click(cx.listener(|this, _, w, cx| this.add_project(w, cx))),
+                        ui::icon_button("add-project", "folder", 14., t).on_click(cx.listener(
+                            |this, _, w, cx| {
+                                if this.connect_form.is_some() {
+                                    this.connect_form = None;
+                                    cx.notify();
+                                } else {
+                                    this.open_connect_form(w, cx);
+                                }
+                            },
+                        )),
                     )
                     .child(dots)
                     .child(
@@ -388,6 +396,31 @@ impl Workspace {
         let key = self.tree_open.len();
         let rows = match &self.tree_cache {
             Some((r, k, rows)) if *r == root && *k == key => rows.clone(),
+            _ if insyde_core::remote::is_remote(&root) => {
+                // Remote listings take a round-trip each: build off the UI thread.
+                let placeholder = std::sync::Arc::new(Vec::new());
+                self.tree_cache = Some((root.clone(), key, placeholder.clone()));
+                let (r2, open, r3) = (root.clone(), self.tree_open.clone(), root.clone());
+                let task = cx.background_spawn(async move {
+                    let mut rows = Vec::new();
+                    collect_tree(&r2, &r2, 0, &open, &mut rows, 1500);
+                    rows
+                });
+                cx.spawn(async move |this, cx| {
+                    let rows = task.await;
+                    let _ = this.update(cx, |this, cx| {
+                        if let Some((r, k, _)) = &this.tree_cache
+                            && *r == r3
+                            && *k == key
+                        {
+                            this.tree_cache = Some((r3, key, std::sync::Arc::new(rows)));
+                            cx.notify();
+                        }
+                    });
+                })
+                .detach();
+                placeholder
+            }
             _ => {
                 let mut rows = Vec::new();
                 collect_tree(&root, &root, 0, &self.tree_open, &mut rows, 1500);
@@ -572,6 +605,19 @@ fn collect_tree(
     cap: usize,
 ) {
     if out.len() >= cap || depth > 12 {
+        return;
+    }
+    if insyde_core::remote::is_remote(dir) {
+        for (name, is_dir) in insyde_core::remote::list_dir(dir) {
+            if out.len() >= cap {
+                return;
+            }
+            let p = dir.join(&name);
+            out.push((p.clone(), depth, is_dir));
+            if is_dir && open.contains(&p) {
+                collect_tree(root, &p, depth + 1, open, out, cap);
+            }
+        }
         return;
     }
     let walker = ignore::WalkBuilder::new(dir)

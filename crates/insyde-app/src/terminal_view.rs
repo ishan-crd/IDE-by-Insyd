@@ -79,9 +79,18 @@ impl TerminalView {
             .into();
         let mut env = env;
         env.insert("PATH".into(), insyde_core::agents::augmented_path());
+        // Remote worktrees: the PTY runs `ssh -t host` into the worktree.
+        let (local_cwd, spawn_program) = match insyde_core::remote::split(&cwd) {
+            Some((host, dir)) => {
+                let p = program.as_ref().map(|(p, a)| (p.as_str(), a.as_slice()));
+                let (ssh, args) = insyde_core::remote::pty_command(&host, &dir, p);
+                (dirs_home(), Some((ssh, args)))
+            }
+            None => (cwd.clone(), program.clone()),
+        };
         let opts = SpawnOptions {
-            cwd: cwd.clone(),
-            program: program.clone(),
+            cwd: local_cwd,
+            program: spawn_program,
             env,
             size: Size {
                 cols: 80,
@@ -236,6 +245,12 @@ impl TerminalView {
         }
         cx.notify();
     }
+}
+
+fn dirs_home() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"))
 }
 
 /// Keystroke → bytes for the PTY (xterm conventions).

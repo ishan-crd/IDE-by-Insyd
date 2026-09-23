@@ -25,6 +25,12 @@ agent persistent context about the repository's main branch.
   scrollback, xterm key handling, bracketed paste; Logs and Problems tabs.
 - **Review**: PR checks via `gh` (re-run failed), changed files with per-file diff, file viewer,
   content search, one-click draft PR.
+- **Remote over SSH**: open `user@host:/path/to/repo` from the sidebar's folder button or
+  `insy open`. Git, worktrees, terminals, agents, GitHub, the editor, search and the brain run on the
+  host through one multiplexed SSH connection (uses your `~/.ssh/config` and keys).
+- **Teams**: a lead plus specialists, each in its own worktree, coordinating through `insy`.
+- **Editor and review**: code editor with highlighting and ⌘S; comment on any diff line and send
+  the comments to the agent.
 - Light and dark themes from the design tokens; all regions resizable and persisted.
 
 ## Command line

@@ -216,6 +216,38 @@ impl Workspace {
                 .child(menu);
         }
 
+        if let Some(input) = self.connect_form.clone() {
+            root = root.child(scrim("connect-scrim", cx, |this| this.connect_form = None)).child(
+                div()
+                    .absolute()
+                    .left(px(10.))
+                    .bottom(px(f32::from(metrics::STATUS_H) + self.sizes().2 + 48.))
+                    .w(px(320.))
+                    .p(px(10.))
+                    .bg(t.panel)
+                    .border_1()
+                    .border_color(t.line)
+                    .rounded(metrics::RADIUS_LG)
+                    .shadow(t.pop_shadow(true))
+                    .occlude()
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.))
+                    .child(div().text_size(metrics::TEXT).font_weight(FontWeight::SEMIBOLD).child("Open a project"))
+                    .child(
+                        ui::button("open-folder", t)
+                            .h(px(28.))
+                            .text_size(metrics::TEXT_SM)
+                            .child(icon("folder", 13., t.ink))
+                            .child("Local folder…")
+                            .on_click(cx.listener(|this, _, w, cx| this.add_project(w, cx))),
+                    )
+                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child("Or connect over SSH (uses your ~/.ssh/config and keys):"))
+                    .child(gpui_component::input::Input::new(&input).h(px(30.)))
+                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_faint).child("Git, terminals and agents run on the host. Press Enter to connect.")),
+            );
+        }
+
         if self.team_form.is_some() {
             root = root
                 .child(scrim("team-scrim", cx, |this| this.team_form = None))

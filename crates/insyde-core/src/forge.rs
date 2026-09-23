@@ -9,9 +9,23 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn gh(cwd: &Path, args: &[&str]) -> Option<String> {
-    let mut child = Command::new("gh")
-        .args(args)
-        .current_dir(cwd)
+    let mut cmd = match crate::remote::split(cwd) {
+        // Remote repos: run `gh` on the host, in the repo.
+        Some((host, dir)) => crate::remote::command(
+            &host,
+            &format!(
+                "GH_PROMPT_DISABLED=1 NO_COLOR=1 {}",
+                crate::remote::script_in(&dir, "gh", args)
+            ),
+            false,
+        ),
+        None => {
+            let mut c = Command::new("gh");
+            c.args(args).current_dir(cwd);
+            c
+        }
+    };
+    let mut child = cmd
         .env("GH_PROMPT_DISABLED", "1")
         .env("NO_COLOR", "1")
         .stdin(Stdio::null())

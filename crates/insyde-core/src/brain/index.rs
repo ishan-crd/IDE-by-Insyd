@@ -15,7 +15,7 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::LazyLock;
 
 const MAX_FILE_BYTES: u64 = 200 * 1024;
@@ -376,9 +376,7 @@ fn md_summary(text: &str) -> (Option<String>, String) {
 
 /// Read many blobs through one `git cat-file --batch` process.
 fn read_blobs(repo: &Path, base: &str, paths: &[String]) -> Result<Vec<Option<String>>> {
-    let mut child = Command::new("git")
-        .args(["cat-file", "--batch"])
-        .current_dir(repo)
+    let mut child = git::command(repo, &["cat-file", "--batch"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

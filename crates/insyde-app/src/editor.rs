@@ -82,7 +82,7 @@ impl FileEditor {
         self.loading = true;
         let path = self.path();
         let task = cx.background_spawn(async move {
-            let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+            let bytes = insyde_core::remote::read_file(&path).map_err(|e| e.to_string())?;
             if bytes.contains(&0) {
                 return Err("Binary file".to_string());
             }
@@ -128,7 +128,7 @@ impl FileEditor {
             return;
         }
         let path = self.path();
-        if std::fs::read_to_string(&path).is_ok_and(|t| t != self.disk) {
+        if insyde_core::remote::read_to_string(&path).is_ok_and(|t| t != self.disk) {
             self.load(None, window, cx);
         }
     }
@@ -140,7 +140,7 @@ impl FileEditor {
         let text = self.state.read(cx).value().to_string();
         let path = self.path();
         let rel = self.rel.clone();
-        match std::fs::write(&path, text.as_bytes()) {
+        match insyde_core::remote::write_file(&path, text.as_bytes()) {
             Ok(()) => {
                 self.disk = text;
                 self.dirty = false;

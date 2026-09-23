@@ -20,7 +20,7 @@ USAGE
   insy agent wait <id> [--timeout <secs>]      block until the agent finishes its turn
   insy agent read <id>                         print the agent's last reply
   insy brain search \"<query>\"                  full-text search the Project Brain
-  insy open <path>                             add a repository and switch to it
+  insy open <path | user@host:/path>           add a repository (local or over SSH) and switch to it
   insy coord get <key> | set <key> <value> | list
                                                shared state for agent teams (per project)
   insy team run <team.toml>                    start a lead + specialists team
@@ -108,8 +108,14 @@ fn run() -> Result<()> {
         ["agent", "read", id] => ("agent.get", json!({ "id": id.parse::<u64>()? })),
         ["brain", "search", q] => ("brain.search", json!({ "query": q })),
         ["open", path] => {
-            let p = std::fs::canonicalize(path)?;
-            ("open", json!({ "path": p }))
+            // `user@host:/path` and `ssh://host/path` open over SSH.
+            if insyde_core::remote::parse_target(path).is_some()
+                && !std::path::Path::new(path).exists()
+            {
+                ("open", json!({ "path": path }))
+            } else {
+                ("open", json!({ "path": std::fs::canonicalize(path)? }))
+            }
         }
         ["coord", "get", key] => ("coord.get", json!({ "key": key })),
         ["coord", "set", key, value] => ("coord.set", json!({ "key": key, "value": value })),

@@ -2,7 +2,7 @@
 //! Every call runs on the UI thread with full access to workspace state.
 
 use super::{TabView, Workspace};
-use gpui::{Context, Window};
+use gpui::{AppContext, Context, Window};
 use insyde_core::agents::{AGENTS, AgentSpec};
 use insyde_core::rpc::Call;
 use serde_json::{Value, json};
@@ -113,10 +113,9 @@ impl Workspace {
                 let Some(path) = call.param_str("path") else {
                     return call.err("need path");
                 };
-                match self.open_project_path(Path::new(&path), window, cx) {
-                    Ok(name) => call.ok(json!({ "message": format!("opened {name}") })),
-                    Err(e) => call.err(e.to_string()),
-                }
+                let path = insyde_core::remote::parse_target(&path)
+                    .unwrap_or_else(|| PathBuf::from(&path));
+                self.open_project(path, Some(call), window, cx);
             }
             "coord.get" => {
                 let key = call.param_str("key").unwrap_or_default();
@@ -259,31 +258,60 @@ impl Workspace {
     }
 
     /// Add a repository by path (or switch to it if already open).
-    pub(crate) fn open_project_path(
+    /// Add a repository (local path or `ssh://host/path`) or switch to it if
+    /// already open. The git probe runs off the UI thread (it may be remote).
+    pub(crate) fn open_project(
         &mut self,
-        path: &Path,
+        path: PathBuf,
+        reply: Option<Call>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<String> {
-        let row = insyde_core::project::Project::probe(path)?;
-        if let Some(i) = self
-            .projects
-            .iter()
-            .position(|p| p.project.root == row.path)
-        {
-            self.select_project(i, window, cx);
-            return Ok(row.name);
+    ) {
+        let remote = insyde_core::remote::is_remote(&path);
+        if remote {
+            self.toast(format!("Connecting to {}…", path.display()), false, cx);
         }
-        self.store.add_project(&row)?;
-        self.projects.push(super::ProjectState {
-            project: insyde_core::project::Project::from_row(&row),
-            active_wt: 0,
-            brain: super::BrainState::None,
-            scanning: false,
-        });
-        let i = self.projects.len() - 1;
-        self.select_project(i, window, cx);
-        Ok(row.name)
+        let task = cx.background_spawn(async move { insyde_core::project::Project::probe(&path) });
+        cx.spawn_in(window, async move |this, cx| {
+            let probe = task.await;
+            let _ = this.update_in(cx, |this, window, cx| match probe {
+                Ok(row) => {
+                    if let Some(i) = this
+                        .projects
+                        .iter()
+                        .position(|p| p.project.root == row.path)
+                    {
+                        this.select_project(i, window, cx);
+                    } else {
+                        let _ = this.store.add_project(&row);
+                        this.projects.push(super::ProjectState {
+                            project: insyde_core::project::Project::from_row(&row),
+                            active_wt: 0,
+                            brain: super::BrainState::None,
+                            scanning: false,
+                        });
+                        let i = this.projects.len() - 1;
+                        this.select_project(i, window, cx);
+                        this.toast(format!("Opened {}", row.name), false, cx);
+                    }
+                    if let Some(r) = reply {
+                        r.ok(json!({ "message": format!("opened {}", row.name) }));
+                    }
+                }
+                Err(e) => {
+                    let msg = if remote {
+                        format!("Couldn't open over SSH: {e}")
+                    } else {
+                        format!("Not a git repository: {e}")
+                    };
+                    this.toast(msg.clone(), true, cx);
+                    if let Some(r) = reply {
+                        r.err(msg);
+                    }
+                }
+            });
+        })
+        .detach();
     }
 
     fn rpc_team_run(&mut self, call: Call, window: &mut Window, cx: &mut Context<Self>) {

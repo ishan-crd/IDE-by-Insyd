@@ -11,6 +11,31 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::remote;
+
+/// A `git …` command in `cwd` with piped stdio, local or over SSH (for
+/// streaming protocols like `cat-file --batch`).
+pub fn command(cwd: &Path, args: &[&str]) -> Command {
+    match remote::split(cwd) {
+        Some((host, dir)) => remote::command(&host, &remote::script_in(&dir, "git", args), false),
+        None => {
+            let mut c = Command::new("git");
+            c.args(args)
+                .current_dir(cwd)
+                .env("GIT_TERMINAL_PROMPT", "0");
+            c
+        }
+    }
+}
+
+/// Re-attach the host to a path printed by a remote command.
+fn localize(like: &Path, printed: &str) -> PathBuf {
+    match remote::split(like) {
+        Some((host, _)) => remote::join(&host, printed),
+        None => PathBuf::from(printed),
+    }
+}
+
 const MAX_OUTPUT: usize = 1 << 20;
 const MAX_CONCURRENT: usize = 8;
 
@@ -45,6 +70,18 @@ pub fn run(cwd: &Path, args: &[&str]) -> Result<String> {
 /// discarded (never left in the pipe, which would stall or SIGPIPE git).
 pub fn run_capped(cwd: &Path, args: &[&str], cap: usize) -> Result<String> {
     let _slot = Slot::take();
+    if let Some((host, dir)) = remote::split(cwd) {
+        let mut script = format!(
+            "cd {} && GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git",
+            remote::quote_path(&dir)
+        );
+        for a in args {
+            script.push(' ');
+            script.push_str(&remote::quote(a));
+        }
+        return remote::run(&host, &script, cap)
+            .map_err(|e| anyhow!("git {}: {e}", args.first().unwrap_or(&"")));
+    }
     let mut child = Command::new("git")
         .args(args)
         .current_dir(cwd)
@@ -91,7 +128,7 @@ pub fn repo_root(path: &Path) -> Result<PathBuf> {
     } else {
         PathBuf::from(run(path, &["rev-parse", "--show-toplevel"])?.trim())
     };
-    Ok(root)
+    Ok(localize(path, &root.to_string_lossy()))
 }
 
 /// The branch new work should be based on: `origin/HEAD`'s target, else
@@ -161,7 +198,7 @@ pub fn list_worktrees(repo: &Path) -> Result<Vec<WorktreeEntry>> {
                 list.push(w);
             }
             cur = Some(WorktreeEntry {
-                path: PathBuf::from(p),
+                path: localize(repo, p),
                 branch: None,
                 head: String::new(),
                 is_main: list.is_empty(),
@@ -230,8 +267,8 @@ pub fn worktrees_dir(repo: &Path) -> PathBuf {
 
 pub fn add_worktree(repo: &Path, branch: &str, base: &str) -> Result<PathBuf> {
     let dir = worktrees_dir(repo).join(branch.replace('/', "-"));
-    std::fs::create_dir_all(dir.parent().unwrap())?;
-    let d = dir.to_string_lossy();
+    remote::create_dir_all(dir.parent().unwrap())?;
+    let d = remote::arg(&dir);
     let exists = try_run(
         repo,
         &[
@@ -259,7 +296,7 @@ pub fn remove_worktree(repo: &Path, path: &Path, force: bool) -> Result<()> {
             return Err(anyhow!("worktree has uncommitted changes"));
         }
     }
-    let p = path.to_string_lossy();
+    let p = remote::arg(path);
     if force {
         run(repo, &["worktree", "remove", "--force", &p])?;
     } else {
@@ -382,7 +419,7 @@ pub fn file_patch(cwd: &Path, base: &str, path: &str) -> String {
         )
         .unwrap_or_else(|| {
             // `diff --no-index` exits 1 when files differ; fall back to raw content.
-            let body = std::fs::read_to_string(cwd.join(path)).unwrap_or_default();
+            let body = remote::read_to_string(&cwd.join(path)).unwrap_or_default();
             let mut s = format!("@@ -0,0 +1,{} @@\n", body.lines().count());
             for l in body.lines().take(4000) {
                 s.push('+');

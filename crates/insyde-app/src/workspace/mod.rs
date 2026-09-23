@@ -118,6 +118,8 @@ pub struct WtState {
     /// Comment being written: (file, line, side, code, input).
     pub draft: Option<(String, i64, String, String, Entity<InputState>)>,
     pub editor: Option<Entity<crate::editor::FileEditor>>,
+    /// (command, button label) for the top bar's Run button.
+    pub run: Option<(String, String)>,
     pub loading_pr: bool,
 }
 
@@ -237,6 +239,7 @@ pub struct Workspace {
     pub ahead_behind: HashMap<PathBuf, (u32, u32)>,
     pub team: Option<team::TeamState>,
     pub team_form: Option<team::TeamForm>,
+    pub connect_form: Option<Entity<InputState>>,
     /// Set while a team is opening worktrees, so they don't get a default chat.
     suppress_default_tab: bool,
     _subs: Vec<Subscription>,
@@ -315,6 +318,7 @@ impl Workspace {
             ahead_behind: HashMap::new(),
             team: None,
             team_form: None,
+            connect_form: None,
             suppress_default_tab: false,
             _subs: subs,
         };
@@ -657,6 +661,7 @@ impl Workspace {
             diff_sel: None,
             patch: None,
             editor: None,
+            run: None,
             comments: vec![],
             draft: None,
             loading_pr: false,
@@ -701,10 +706,11 @@ impl Workspace {
             let files = insyde_core::git::changed_files(&p2, &base);
             let ab = insyde_core::git::ahead_behind(&p2);
             let pr = insyde_core::forge::pr_for(&p2);
-            (files, pr, ab)
+            let run = insyde_core::project::run_command(&p2);
+            (files, pr, ab, run)
         });
         cx.spawn(async move |this, cx| {
-            let (files, pr, ab) = task.await;
+            let (files, pr, ab, run) = task.await;
             let _ = this.update(cx, |this, cx| {
                 match ab {
                     Some(v) => {
@@ -716,6 +722,7 @@ impl Workspace {
                 }
                 if let Some(ws) = this.wts.get_mut(&path) {
                     ws.files = files;
+                    ws.run = run;
                     ws.pr = pr;
                     ws.loading_pr = false;
                 }
@@ -766,6 +773,7 @@ impl Workspace {
     }
 
     pub fn add_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.connect_form = None;
         let rx = cx.prompt_for_paths(gpui::PathPromptOptions {
             files: false,
             directories: true,
@@ -779,37 +787,33 @@ impl Workspace {
             let Some(path) = paths.into_iter().next() else {
                 return;
             };
-            let probe = cx
-                .background_spawn(async move { Project::probe(&path) })
-                .await;
-            let _ = this.update_in(cx, |this, window, cx| match probe {
-                Ok(row) => {
-                    if let Some(i) = this
-                        .projects
-                        .iter()
-                        .position(|p| p.project.root == row.path)
-                    {
-                        this.select_project(i, window, cx);
-                        return;
-                    }
-                    let _ = this.store.add_project(&row);
-                    this.projects.push(ProjectState {
-                        project: Project::from_row(&row),
-                        active_wt: 0,
-                        brain: BrainState::None,
-                        scanning: false,
-                    });
-                    let i = this.projects.len() - 1;
-                    this.load_brain(i, cx);
-                    this.p = i;
-                    this.store.set("active_project", &i);
-                    this.scan_project(i, cx);
-                    this.toast(format!("Added {}", row.name), false, cx);
-                }
-                Err(e) => this.toast(format!("Not a git repository: {e}"), true, cx),
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.open_project(path, None, window, cx)
             });
         })
         .detach();
+    }
+
+    /// "Connect over SSH" box: `user@host:/path/to/repo`.
+    pub fn open_connect_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("user@host:/path/to/repo"));
+        self._subs.push(
+            cx.subscribe_in(&input, window, |this, s, ev: &InputEvent, window, cx| {
+                if let InputEvent::PressEnter { .. } = ev {
+                    let target = s.read(cx).value().to_string();
+                    match insyde_core::remote::parse_target(&target) {
+                        Some(path) => {
+                            this.connect_form = None;
+                            this.open_project(path, None, window, cx);
+                        }
+                        None => this.toast("Use user@host:/path/to/repo", true, cx),
+                    }
+                }
+            }),
+        );
+        input.update(cx, |s, cx| s.focus(window, cx));
+        self.connect_form = Some(input);
+        cx.notify();
     }
 
     pub fn start_new_worktree(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1217,44 +1221,14 @@ impl Workspace {
     }
 
     /// Best "run" command for the project, plus its button label.
+    /// Cached run command of the active worktree (detected in the background).
     pub fn run_command(&self) -> Option<(String, String)> {
-        let path = self.active_wt_path()?;
-        let read = |f: &str| std::fs::read_to_string(path.join(f)).ok();
-        if let Some(pkg) = read("package.json") {
-            let pm = if path.join("pnpm-lock.yaml").exists() {
-                "pnpm"
-            } else if path.join("bun.lockb").exists() || path.join("bun.lock").exists() {
-                "bun"
-            } else if path.join("yarn.lock").exists() {
-                "yarn"
-            } else {
-                "npm"
-            };
-            for s in ["dev", "start", "serve"] {
-                if pkg.contains(&format!("\"{s}\":")) {
-                    return Some((format!("{pm} run {s}"), format!("Run {s}")));
-                }
-            }
-        }
-        if path.join("Cargo.toml").exists() {
-            return Some(("cargo run".into(), "Run cargo".into()));
-        }
-        if path.join("go.mod").exists() {
-            return Some(("go run .".into(), "Run go".into()));
-        }
-        if read("Makefile").is_some_and(|m| m.contains("\nrun:") || m.starts_with("run:")) {
-            return Some(("make run".into(), "Run make".into()));
-        }
-        None
+        self.wt().and_then(|w| w.run.clone())
     }
 
-    /// A localhost URL printed by any terminal of this worktree (for "Browser").
+    /// A dev-server URL for the "Browser" entry.
     fn dev_url(&self) -> Option<String> {
-        None.or_else(|| {
-            let ws = self.wt()?;
-            let _ = ws;
-            None
-        })
+        None
     }
 
     // ---------- search ----------

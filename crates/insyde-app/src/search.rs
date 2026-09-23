@@ -5,6 +5,9 @@ use std::path::Path;
 
 /// Case-insensitive literal search. Returns (relative path, 1-based line, text).
 pub fn grep(root: &Path, query: &str, limit: usize) -> Vec<(String, usize, String)> {
+    if insyde_core::remote::is_remote(root) {
+        return remote_grep(root, query, limit);
+    }
     let needle = query.to_lowercase();
     let mut out = Vec::new();
     let walker = ignore::WalkBuilder::new(root)
@@ -44,4 +47,38 @@ pub fn grep(root: &Path, query: &str, limit: usize) -> Vec<(String, usize, Strin
         }
     }
     out
+}
+
+/// Remote search: `git grep` on the host (tracked and untracked, ignoring .gitignore'd files).
+fn remote_grep(root: &Path, query: &str, limit: usize) -> Vec<(String, usize, String)> {
+    let max = limit.to_string();
+    let out = insyde_core::git::run(
+        root,
+        &[
+            "grep",
+            "-n",
+            "-I",
+            "-i",
+            "-F",
+            "--untracked",
+            "--max-count",
+            "5",
+            "-e",
+            query,
+        ],
+    )
+    .unwrap_or_default();
+    let _ = max;
+    out.lines()
+        .filter_map(|l| {
+            let mut it = l.splitn(3, ':');
+            let (p, n, t) = (it.next()?, it.next()?, it.next()?);
+            Some((
+                p.to_string(),
+                n.parse().ok()?,
+                t.trim().chars().take(200).collect(),
+            ))
+        })
+        .take(limit)
+        .collect()
 }
