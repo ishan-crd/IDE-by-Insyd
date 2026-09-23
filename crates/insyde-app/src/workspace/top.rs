@@ -1,5 +1,6 @@
-//! Top bar: brand, Project Brain controls, the active agent's context meter / Hand off /
-//! history, activity summary, cost, layout, theme, and the Run button with its menu.
+//! Top bar, in three columns over the panes below: brand (sidebar); Project Brain
+//! and the agent count / history / Hand off (agent area); cost, layout, theme and
+//! the Run button with its menu (right panel).
 
 use super::{BrainState, Workspace};
 use crate::ui::{self, icon};
@@ -136,26 +137,24 @@ impl Workspace {
         let session = self.render_session_controls(t, cx);
         let run_btn = self.render_run_button(t, cx);
         let dark = t.is_dark();
-        div()
+        // Three columns over the panes below (sidebar | agents | right panel),
+        // so each group stays over its pane as the panes are resized.
+        let (side_w, right_w, _) = self.sizes();
+        let gap = if t.glass { super::GLASS_GAP } else { 0. };
+        let brand = div()
             .flex()
             .flex_none()
             .items_center()
-            .gap(px(8.))
-            .h(metrics::TOPBAR_H)
+            .h_full()
             .pl(px(84.)) // native traffic lights sit here
             .pr(px(12.))
-            .bg(t.chrome)
-            .border_b_1()
-            .border_color(t.chrome_line)
+            .when(side_w > 0., |d| d.w(px(side_w)))
             .child(
                 div()
                     .flex()
                     .items_baseline()
                     .gap(px(6.))
-                    .pr(px(14.))
-                    .mr(px(4.))
-                    .border_r_1()
-                    .border_color(t.line)
+                    .whitespace_nowrap()
                     .child(
                         div()
                             .text_size(metrics::TEXT_TITLE)
@@ -169,22 +168,37 @@ impl Workspace {
                             .text_color(t.ink_3)
                             .child("by Insyd"),
                     ),
-            )
-            .child(div().ml(px(2.)).child(brain))
+            );
+        // Over the agent area: brain on the left, session controls flush with
+        // the agent tab bar's right edge.
+        let center = div()
+            .flex()
+            .flex_1()
+            .min_w_0()
+            .items_center()
+            .gap(px(8.))
+            .h_full()
+            .pl(px(gap + 6.))
+            .pr(px(gap + 8.))
+            .child(div().flex().min_w_0().overflow_hidden().child(brain))
             .child(div().flex_1())
-            .child(session)
+            .child(session);
+        let tools = div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_end()
+            .gap(px(4.))
+            .h_full()
+            .pl(px(12.))
+            .pr(px(12.))
+            .when(right_w > 0., |d| d.w(px(right_w)))
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .h(metrics::CONTROL_H)
-                    .px(px(10.))
-                    .border_1()
-                    .border_color(t.field_border)
-                    .rounded(metrics::RADIUS)
+                    .mr(px(6.))
                     .text_size(metrics::TEXT_SM)
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.ink_2)
+                    .text_color(t.ink_3)
                     .child(format!("${cost:.2}")),
             )
             .child(
@@ -201,15 +215,25 @@ impl Workspace {
                     .size(metrics::CONTROL_H)
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
             )
-            .child(run_btn)
+            .child(div().ml(px(4.)).child(run_btn));
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .h(metrics::TOPBAR_H)
+            .bg(t.chrome)
+            .border_b_1()
+            .border_color(t.chrome_line)
+            .child(brand)
+            .child(center)
+            .child(tools)
             .into_any_element()
     }
 }
 
 impl Workspace {
-    /// Context meter, Hand off, agent count and session history for the active
-    /// worktree's current tab, sized to the top bar's controls. The Hand off
-    /// and history popovers open anchored under their buttons.
+    /// Agent count, session history and Hand off for the active worktree,
+    /// at the right end of the agent area. Popovers open under their buttons.
     fn render_session_controls(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let Some(agents) = self
             .wt()
@@ -217,12 +241,6 @@ impl Workspace {
         else {
             return div().into_any_element();
         };
-        let (used, size) = self
-            .active_chat()
-            .map(|c| c.read(cx).context_usage())
-            .unwrap_or((0, 200_000));
-        let pct = (used as f64 * 100. / size.max(1) as f64).min(100.) as f32;
-        let meter_color = if pct > 85. { t.err } else { t.ink_3 };
         let handoff_pop = self
             .handoff
             .is_some()
@@ -234,69 +252,13 @@ impl Workspace {
             .flex()
             .flex_none()
             .items_center()
-            .gap(px(6.))
+            .gap(px(4.))
             .whitespace_nowrap()
-            .pr(px(14.))
-            .mr(px(4.))
-            .border_r_1()
-            .border_color(t.line)
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(px(7.))
-                    .h(metrics::CONTROL_H)
-                    .px(px(4.))
-                    .text_size(metrics::TEXT_XS)
-                    .child(
-                        div()
-                            .w(px(44.))
-                            .h(px(4.))
-                            .rounded(px(4.))
-                            .bg(t.line)
-                            .overflow_hidden()
-                            .child(
-                                div()
-                                    .h_full()
-                                    .rounded(px(4.))
-                                    .w(gpui::relative(pct / 100.))
-                                    .bg(meter_color),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(meter_color)
-                            .child(format!(
-                                "{} / {}",
-                                ui::fmt_tokens(used),
-                                ui::fmt_tokens(size)
-                            )),
-                    ),
-            )
-            .child(
-                div()
-                    .relative()
-                    .child(
-                        ui::button("handoff-btn", t)
-                            .when(self.handoff.is_some(), |d| d.bg(t.hover_2))
-                            .child(icon("handoff", 13., t.ink))
-                            .child("Hand off")
-                            .on_click(cx.listener(|this, _, w, cx| this.open_handoff(w, cx))),
-                    )
-                    .children(handoff_pop),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .h(px(22.))
-                    .px(px(8.))
-                    .rounded(px(4.))
-                    .bg(t.hover_2)
-                    .text_size(metrics::TEXT_XS)
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.ink_2)
+                    .mr(px(4.))
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
                     .child(format!(
                         "{agents} agent{}",
                         if agents == 1 { "" } else { "s" }
@@ -306,11 +268,9 @@ impl Workspace {
                 div()
                     .relative()
                     .child(
-                        ui::button("history", t)
-                            .w(metrics::CONTROL_H)
-                            .px_0()
-                            .justify_center()
-                            .child(icon("history", 15., t.ink))
+                        ui::icon_button("history", "history", 15., t)
+                            .size(metrics::CONTROL_H)
+                            .when(self.history_open, |d| d.bg(t.hover_2))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.history_open = !this.history_open;
                                 this.handoff = None;
@@ -318,6 +278,20 @@ impl Workspace {
                             })),
                     )
                     .children(history_pop),
+            )
+            .child(
+                div()
+                    .relative()
+                    .ml(px(4.))
+                    .child(
+                        ui::button("handoff-btn", t)
+                            .when(self.handoff.is_some(), |d| d.bg(t.hover_2))
+                            .text_size(metrics::TEXT_SM)
+                            .child(icon("handoff", 13., t.ink))
+                            .child("Hand off")
+                            .on_click(cx.listener(|this, _, w, cx| this.open_handoff(w, cx))),
+                    )
+                    .children(handoff_pop),
             )
             .into_any_element()
     }

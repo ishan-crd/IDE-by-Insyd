@@ -29,8 +29,10 @@ Crates are named `insyde-*` (the plan's `ide-*`).
   pasteboard) are named directly; both were already in the tree through gpui.
 - **Shaders**: default feature `runtime-shaders` compiles Metal shaders at launch (~0.8 s) because
   the Metal toolchain isn't installed by default in Xcode 26. See README for the fast path.
-- **Session controls** (context meter, Hand off, agent count, history): in the top bar, not the
-  center tab strip as in the design (user request). Their popovers anchor under the buttons.
+- **Top bar layout**: three columns sized to the panes below (brand over the sidebar; Brain,
+  agent count, history and Hand off over the agent area; cost, layout, theme and Run over the right
+  panel), so each group follows its pane when resized. The design's context meter is omitted
+  (user request); Hand off / history popovers anchor under their buttons.
 - **File tree context menu**: right-click a file or folder for Open, Open in New Tab (another
   tab in the right panel's Editor), Open in Agent Area (a file tab in the center strip), Reveal in Finder, Open in Terminal, Copy (the file
   itself), Copy Path, Copy Relative Path, Rename, Duplicate, New File/Folder, Move to Trash
