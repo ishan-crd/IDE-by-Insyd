@@ -652,6 +652,12 @@ impl Workspace {
         if self.wts.contains_key(&path) {
             return;
         }
+        // Tabs need a window; without one, defer the whole setup to the next render.
+        if window.is_none() {
+            self.pending_default_tab = true;
+            cx.notify();
+            return;
+        }
         let ws = WtState {
             tabs: vec![],
             active: 0,
@@ -1924,12 +1930,7 @@ impl Render for Workspace {
         self.window_size = (f32::from(vs.width), f32::from(vs.height));
         if self.pending_default_tab {
             self.pending_default_tab = false;
-            if let Some(path) = self.active_wt_path()
-                && self.wts.get(&path).is_some_and(|w| w.tabs.is_empty())
-            {
-                self.wts.remove(&path);
-                self.ensure_wt(Some(window), cx);
-            }
+            self.ensure_wt(Some(window), cx);
         }
         let (side_w, right_w, term_h) = self.sizes();
         let mut root = div()

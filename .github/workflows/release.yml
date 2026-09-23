@@ -1,0 +1,22 @@
+name: release
+# Push a tag like v0.2.0 to build InsyDE.app + .dmg and attach it to a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.98.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Build app and dmg
+        run: packaging/macos/bundle.sh
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" target/release/bundle/*.dmg --title "InsyDE $GITHUB_REF_NAME" --generate-notes

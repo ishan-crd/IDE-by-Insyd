@@ -63,12 +63,24 @@ xcodebuild -downloadComponent MetalToolchain
 cargo build -p insyde-app --release --no-default-features
 ```
 
+## Package
+
+```sh
+packaging/macos/bundle.sh     # target/release/bundle/InsyDE.app and InsyDE-<version>.dmg
+ln -sf /Applications/InsyDE.app/Contents/MacOS/insy /usr/local/bin/insy   # CLI on PATH
+```
+
+Pushing a `v*` tag builds the `.dmg` in CI and attaches it to a GitHub release. Builds are
+ad-hoc signed; set `SIGN_IDENTITY` to a Developer ID for distribution (and notarize).
+
 ## Layout
 
 ```
 crates/insyde-theme   design tokens (light/dark) from design/InsyDE.dc.html
 crates/insyde-core    git, worktrees, gh, SQLite store, PTY terminals, ACP client, Project Brain
-crates/insyde-app     GPUI app: workspace, chat, terminal view, brain view
+crates/insyde-app     GPUI app: workspace, chat, terminal view, brain view, editor
+crates/insyde-cli     `insy`, the command-line client for a running InsyDE
+packaging/macos       app bundle, icon and dmg script
 docs/                 research, stack, architecture, plan, status
 ```
 
