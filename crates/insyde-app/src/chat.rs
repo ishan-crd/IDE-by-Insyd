@@ -138,7 +138,12 @@ impl ChatView {
             .map(|r| init.store.events(r.id))
             .unwrap_or_default();
         let acp_id = init.resume.as_ref().and_then(|r| r.acp_id.clone());
-        let transcript = Arc::new(parking_lot::Mutex::new(Transcript::from_history(history)));
+        let mut restored = Transcript::from_history(history);
+        if let Some(r) = &init.resume {
+            restored.usage.used = r.tokens.max(0) as u64;
+            restored.usage.cost = r.cost;
+        }
+        let transcript = Arc::new(parking_lot::Mutex::new(restored));
         cx.spawn(async move |this, cx| {
             while rx.recv_async().await.is_ok() {
                 if this.update(cx, |this, cx| this.sync(cx)).is_err() {

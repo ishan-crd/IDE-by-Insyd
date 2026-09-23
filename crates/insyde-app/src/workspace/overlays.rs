@@ -282,7 +282,7 @@ impl Workspace {
                     .flex()
                     .items_center()
                     .gap(px(10.))
-                    .h(px(34.))
+                    .py(px(5.))
                     .px(px(6.))
                     .rounded(metrics::RADIUS)
                     .cursor_pointer()
@@ -355,7 +355,7 @@ impl Workspace {
                     .border_t_1()
                     .border_color(t.line)
                     .bg(t.panel_2)
-                    .child(div().flex_1().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(format!("{} tokens → fresh window", ui::fmt_k(total))))
+                    .child(ui::trunc(format!("{} → fresh window", ui::fmt_k(total))).flex_1().text_size(metrics::TEXT_XS).text_color(t.ink_3))
                     .child(ui::small_button("ho-cancel", "Cancel", t).h(px(28.)).on_click(cx.listener(|this, _, _, cx| {
                         this.handoff = None;
                         cx.notify();

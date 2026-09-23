@@ -1411,7 +1411,7 @@ impl Workspace {
             .map(|t| t.agent);
         let target = insyde_core::agents::AGENTS
             .iter()
-            .position(|s| Some(s.id) != current && s.acp.is_some())
+            .position(|s| Some(s.id) != current && s.acp.is_some() && s.id != AgentId::Super)
             .unwrap_or(1);
         let tok = |s: &str| s.len() as f64 / 4.;
         let subs = [
@@ -1491,6 +1491,19 @@ impl Workspace {
                     if let Some(h) = &mut this.handoff {
                         h.tokens[1] = diff.len() as f64 / 4.;
                         h.opts[1] = !diff.is_empty();
+                        let files = diff.lines().filter(|l| l.starts_with("diff --git")).count();
+                        if files > 0 {
+                            let (a, r) = diff.lines().fold((0, 0), |(a, r), l| {
+                                if l.starts_with('+') && !l.starts_with("+++") {
+                                    (a + 1, r)
+                                } else if l.starts_with('-') && !l.starts_with("---") {
+                                    (a, r + 1)
+                                } else {
+                                    (a, r)
+                                }
+                            });
+                            h.subs[1] = format!("{files} file{} in the worktree diff · +{a} −{r}", if files == 1 { "" } else { "s" });
+                        }
                         h.diff = diff;
                     }
                     cx.notify();

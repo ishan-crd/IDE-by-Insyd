@@ -683,11 +683,13 @@ async fn run(
                 match cmd {
                     Command::Prompt(blocks) => {
                         let started = now();
+                        let mut worked_ix = 0;
                         ctx.update(|t| {
                             t.running = true;
                             t.turn_started = Some(started);
                             t.error = None;
                             t.items.push(Item::Worked { secs: 0 });
+                            worked_ix = t.items.len() - 1;
                         });
                         ctx.flush();
                         let mut fut = Box::pin(conn.send_request(acp::PromptRequest::new(sid.clone(), to_acp(blocks))).block_task().fuse());
@@ -729,6 +731,8 @@ async fn run(
                             if t.usage.used == 0 {
                                 t.usage.used = t.estimate_tokens();
                             }
+                            // Re-write the turn's "Worked for" marker now that its duration is known.
+                            t.persisted = t.persisted.min(worked_ix);
                         });
                         ctx.flush();
                     }
