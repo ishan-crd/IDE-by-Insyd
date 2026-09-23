@@ -39,6 +39,14 @@ static ICONS: &[(&str, &[u8])] = icons![
     "folder",
     "file",
     "trash",
+    // Agent logos (LobeHub Icons, MIT; see assets/icons/agents/LICENSE).
+    "agents/claude",
+    "agents/codex",
+    "agents/opencode",
+    "agents/pi",
+    "agents/cursor",
+    "agents/grok",
+    "agents/antigravity",
 ];
 
 pub struct Assets;

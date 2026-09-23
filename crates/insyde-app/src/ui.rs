@@ -154,6 +154,22 @@ pub fn tint_color(tint: Tint, t: &Theme) -> Hsla {
 }
 
 /// Circular agent monogram ("CC", "Cx"…).
+/// The agent's own logo, when it has a public one (drawn one-color on its badge).
+fn agent_logo(key: &str) -> Option<&'static str> {
+    Some(match key {
+        "claude" => "agents/claude",
+        "codex" => "agents/codex",
+        "opencode" => "agents/opencode",
+        "pi" | "omp" => "agents/pi",
+        "cursor" => "agents/cursor",
+        "grok" => "agents/grok",
+        "antigravity" => "agents/antigravity",
+        _ => return None,
+    })
+}
+
+/// Round agent badge: the brand logo on its brand color, or a monogram for
+/// entries without a public logo (Super, Browser, Terminal).
 pub fn monogram(spec: &AgentSpec, size: f32, t: &Theme) -> Div {
     let font = match size as i32 {
         0..=18 => 9.5,
@@ -175,8 +191,11 @@ pub fn monogram(spec: &AgentSpec, size: f32, t: &Theme) -> Div {
         .bg(bg)
         .text_color(fg)
         .text_size(px(font))
-        .font_weight(FontWeight::BOLD)
-        .child(spec.mono);
+        .font_weight(FontWeight::BOLD);
+    d = match agent_logo(spec.key) {
+        Some(logo) => d.child(icon(logo, (size * 0.58).round(), fg)),
+        None => d.child(spec.mono),
+    };
     if spec.tint == Tint::Outline {
         d = d.border(px(1.5)).border_color(t.ink_3);
     }
