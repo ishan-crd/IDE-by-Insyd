@@ -1,4 +1,4 @@
-# CLAUDE.md — instructions for the implementing agent (Opus)
+# AGENTS.md — instructions for the implementing agent
 
 You are building InsyDE, a native, GPU-rendered AI-agent IDE in Rust. The plan is in `docs/`; what is already built is in `docs/STATUS.md` (read it first). Crates are `insyde-theme`, `insyde-core`, `insyde-app` (the plan's `ide-*` names). Read in this order before writing code:
 
