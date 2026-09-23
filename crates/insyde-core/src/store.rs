@@ -15,7 +15,7 @@ pub struct Store {
 }
 
 pub fn data_dir() -> PathBuf {
-    let base = dirs::data_dir().unwrap_or_else(|| std::env::temp_dir());
+    let base = dirs::data_dir().unwrap_or_else(std::env::temp_dir);
     let d = base.join("InsyDE");
     let _ = std::fs::create_dir_all(&d);
     d
@@ -38,7 +38,10 @@ CREATE TABLE IF NOT EXISTS events(
 "#;
 
 pub fn now() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 #[derive(Clone, Debug)]
@@ -67,13 +70,17 @@ impl Store {
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
-        Ok(Self { conn: Arc::new(Mutex::new(conn)) })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     pub fn in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(SCHEMA)?;
-        Ok(Self { conn: Arc::new(Mutex::new(conn)) })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     // ---- projects ----
@@ -81,14 +88,22 @@ impl Store {
         let c = self.conn.lock();
         let mut st = c.prepare("SELECT path,name,base FROM projects ORDER BY sort, added")?;
         let rows = st
-            .query_map([], |r| Ok(ProjectRow { path: PathBuf::from(r.get::<_, String>(0)?), name: r.get(1)?, base: r.get(2)? }))?
+            .query_map([], |r| {
+                Ok(ProjectRow {
+                    path: PathBuf::from(r.get::<_, String>(0)?),
+                    name: r.get(1)?,
+                    base: r.get(2)?,
+                })
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
 
     pub fn add_project(&self, p: &ProjectRow) -> Result<()> {
         let c = self.conn.lock();
-        let sort: i64 = c.query_row("SELECT COALESCE(MAX(sort),0)+1 FROM projects", [], |r| r.get(0))?;
+        let sort: i64 = c.query_row("SELECT COALESCE(MAX(sort),0)+1 FROM projects", [], |r| {
+            r.get(0)
+        })?;
         c.execute(
             "INSERT OR IGNORE INTO projects(path,name,base,sort,added) VALUES(?1,?2,?3,?4,?5)",
             params![p.path.to_string_lossy(), p.name, p.base, sort, now()],
@@ -97,20 +112,31 @@ impl Store {
     }
 
     pub fn remove_project(&self, path: &Path) -> Result<()> {
-        self.conn.lock().execute("DELETE FROM projects WHERE path=?1", params![path.to_string_lossy()])?;
+        self.conn.lock().execute(
+            "DELETE FROM projects WHERE path=?1",
+            params![path.to_string_lossy()],
+        )?;
         Ok(())
     }
 
     // ---- settings ----
     pub fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         let c = self.conn.lock();
-        let s: Option<String> = c.query_row("SELECT value FROM kv WHERE key=?1", params![key], |r| r.get(0)).optional().ok()??;
+        let s: Option<String> = c
+            .query_row("SELECT value FROM kv WHERE key=?1", params![key], |r| {
+                r.get(0)
+            })
+            .optional()
+            .ok()??;
         serde_json::from_str(&s?).ok()
     }
 
     pub fn set<T: Serialize>(&self, key: &str, v: &T) {
         if let Ok(s) = serde_json::to_string(v) {
-            let _ = self.conn.lock().execute("INSERT OR REPLACE INTO kv(key,value) VALUES(?1,?2)", params![key, s]);
+            let _ = self.conn.lock().execute(
+                "INSERT OR REPLACE INTO kv(key,value) VALUES(?1,?2)",
+                params![key, s],
+            );
         }
     }
 
@@ -146,7 +172,14 @@ impl Store {
         Ok(rows)
     }
 
-    pub fn update_session(&self, id: i64, title: Option<&str>, acp_id: Option<&str>, tokens: Option<i64>, cost: Option<f64>) {
+    pub fn update_session(
+        &self,
+        id: i64,
+        title: Option<&str>,
+        acp_id: Option<&str>,
+        tokens: Option<i64>,
+        cost: Option<f64>,
+    ) {
         let c = self.conn.lock();
         let _ = c.execute(
             "UPDATE sessions SET title=COALESCE(?2,title), acp_id=COALESCE(?3,acp_id), tokens=COALESCE(?4,tokens),
@@ -179,15 +212,26 @@ impl Store {
     }
 
     pub fn reopen_session(&self, id: i64) {
-        let _ = self.conn.lock().execute("UPDATE sessions SET closed=0 WHERE id=?1", params![id]);
+        let _ = self
+            .conn
+            .lock()
+            .execute("UPDATE sessions SET closed=0 WHERE id=?1", params![id]);
     }
 
     pub fn close_session(&self, id: i64) {
-        let _ = self.conn.lock().execute("UPDATE sessions SET closed=1 WHERE id=?1", params![id]);
+        let _ = self
+            .conn
+            .lock()
+            .execute("UPDATE sessions SET closed=1 WHERE id=?1", params![id]);
     }
 
     pub fn total_cost(&self) -> f64 {
-        self.conn.lock().query_row("SELECT COALESCE(SUM(cost),0) FROM sessions", [], |r| r.get(0)).unwrap_or(0.0)
+        self.conn
+            .lock()
+            .query_row("SELECT COALESCE(SUM(cost),0) FROM sessions", [], |r| {
+                r.get(0)
+            })
+            .unwrap_or(0.0)
     }
 
     /// Append one transcript event. Called before the UI shows it, so a crash
@@ -203,9 +247,14 @@ impl Store {
 
     pub fn events<T: DeserializeOwned>(&self, session: i64) -> Vec<T> {
         let c = self.conn.lock();
-        let Ok(mut st) = c.prepare("SELECT body FROM events WHERE session=?1 ORDER BY seq") else { return vec![] };
+        let Ok(mut st) = c.prepare("SELECT body FROM events WHERE session=?1 ORDER BY seq") else {
+            return vec![];
+        };
         st.query_map(params![session], |r| r.get::<_, String>(0))
-            .map(|it| it.filter_map(|s| s.ok().and_then(|s| serde_json::from_str(&s).ok())).collect())
+            .map(|it| {
+                it.filter_map(|s| s.ok().and_then(|s| serde_json::from_str(&s).ok()))
+                    .collect()
+            })
             .unwrap_or_default()
     }
 }
@@ -216,11 +265,18 @@ mod tests {
     #[test]
     fn roundtrip() {
         let s = Store::in_memory().unwrap();
-        s.add_project(&ProjectRow { path: "/tmp/x".into(), name: "x".into(), base: "main".into() }).unwrap();
+        s.add_project(&ProjectRow {
+            path: "/tmp/x".into(),
+            name: "x".into(),
+            base: "main".into(),
+        })
+        .unwrap();
         assert_eq!(s.projects().unwrap().len(), 1);
         s.set("theme", &"dark");
         assert_eq!(s.get::<String>("theme").as_deref(), Some("dark"));
-        let id = s.create_session(Path::new("/tmp/x"), "claude", "t").unwrap();
+        let id = s
+            .create_session(Path::new("/tmp/x"), "claude", "t")
+            .unwrap();
         s.append_event(id, 0, &serde_json::json!({"k":1}));
         assert_eq!(s.events::<serde_json::Value>(id).len(), 1);
     }

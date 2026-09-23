@@ -20,8 +20,17 @@ fn gh(cwd: &Path, args: &[&str]) -> Option<String> {
         .spawn()
         .ok()?;
     let mut out = Vec::new();
-    child.stdout.take()?.take(4 << 20).read_to_end(&mut out).ok()?;
-    child.wait().ok()?.success().then(|| String::from_utf8_lossy(&out).into_owned())
+    child
+        .stdout
+        .take()?
+        .take(4 << 20)
+        .read_to_end(&mut out)
+        .ok()?;
+    child
+        .wait()
+        .ok()?
+        .success()
+        .then(|| String::from_utf8_lossy(&out).into_owned())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,9 +64,21 @@ pub struct PullRequest {
 
 impl PullRequest {
     pub fn counts(&self) -> (usize, usize, usize) {
-        let ok = self.checks.iter().filter(|c| c.state == CheckState::Ok).count();
-        let run = self.checks.iter().filter(|c| c.state == CheckState::Running).count();
-        let bad = self.checks.iter().filter(|c| c.state == CheckState::Failed).count();
+        let ok = self
+            .checks
+            .iter()
+            .filter(|c| c.state == CheckState::Ok)
+            .count();
+        let run = self
+            .checks
+            .iter()
+            .filter(|c| c.state == CheckState::Running)
+            .count();
+        let bad = self
+            .checks
+            .iter()
+            .filter(|c| c.state == CheckState::Failed)
+            .count();
         (ok, run, bad)
     }
 }
@@ -113,8 +134,19 @@ fn parse_ts(s: &str) -> Option<i64> {
         return None;
     }
     let n = |r: std::ops::Range<usize>| s.get(r)?.parse::<i64>().ok();
-    let (y, mo, d, h, mi, se) = (n(0..4)?, n(5..7)?, n(8..10)?, n(11..13)?, n(14..16)?, n(17..19)?);
-    let (y2, m2) = if mo <= 2 { (y - 1, mo + 9) } else { (y, mo - 3) };
+    let (y, mo, d, h, mi, se) = (
+        n(0..4)?,
+        n(5..7)?,
+        n(8..10)?,
+        n(11..13)?,
+        n(14..16)?,
+        n(17..19)?,
+    );
+    let (y2, m2) = if mo <= 2 {
+        (y - 1, mo + 9)
+    } else {
+        (y, mo - 3)
+    };
     let era = y2.div_euclid(400);
     let yoe = y2 - era * 400;
     let doy = (153 * m2 + 2) / 5 + d - 1;
@@ -123,20 +155,37 @@ fn parse_ts(s: &str) -> Option<i64> {
 }
 
 fn fmt_dur(secs: i64) -> String {
-    if secs < 60 { format!("{secs}s") } else { format!("{}m {}s", secs / 60, secs % 60) }
+    if secs < 60 {
+        format!("{secs}s")
+    } else {
+        format!("{}m {}s", secs / 60, secs % 60)
+    }
 }
 
 impl RawCheck {
     fn into_check(self) -> Check {
-        let state = match (self.status.as_deref(), self.conclusion.as_deref(), self.state.as_deref()) {
-            (Some("COMPLETED"), Some("SUCCESS" | "NEUTRAL"), _) | (_, _, Some("SUCCESS")) => CheckState::Ok,
+        let state = match (
+            self.status.as_deref(),
+            self.conclusion.as_deref(),
+            self.state.as_deref(),
+        ) {
+            (Some("COMPLETED"), Some("SUCCESS" | "NEUTRAL"), _) | (_, _, Some("SUCCESS")) => {
+                CheckState::Ok
+            }
             (Some("COMPLETED"), Some("SKIPPED" | "CANCELLED"), _) => CheckState::Skipped,
-            (Some("COMPLETED"), Some(_), _) | (_, _, Some("FAILURE" | "ERROR")) => CheckState::Failed,
+            (Some("COMPLETED"), Some(_), _) | (_, _, Some("FAILURE" | "ERROR")) => {
+                CheckState::Failed
+            }
             _ => CheckState::Running,
         };
         let now = crate::store::now();
         let start = self.started_at.as_deref().and_then(parse_ts);
-        let end = self.completed_at.as_deref().and_then(parse_ts).filter(|&e| e > 0).unwrap_or(now);
+        let end = self
+            .completed_at
+            .as_deref()
+            .and_then(parse_ts)
+            .filter(|&e| e > 0)
+            .unwrap_or(now);
         let duration = start.map(|s| fmt_dur((end - s).max(0))).unwrap_or_default();
         let name = self.name.or(self.context).unwrap_or_else(|| "check".into());
         let detail = match (&state, self.workflow_name) {
@@ -146,11 +195,18 @@ impl RawCheck {
             (CheckState::Failed, _) => "failed".into(),
             (CheckState::Skipped, _) => "skipped".into(),
         };
-        Check { name, detail, state, duration, url: self.details_url.or(self.target_url) }
+        Check {
+            name,
+            detail,
+            state,
+            duration,
+            url: self.details_url.or(self.target_url),
+        }
     }
 }
 
-const PR_FIELDS: &str = "number,title,headRefName,baseRefName,isDraft,url,mergeable,statusCheckRollup";
+const PR_FIELDS: &str =
+    "number,title,headRefName,baseRefName,isDraft,url,mergeable,statusCheckRollup";
 
 fn to_pr(r: RawPr) -> PullRequest {
     PullRequest {
@@ -161,19 +217,39 @@ fn to_pr(r: RawPr) -> PullRequest {
         draft: r.is_draft,
         url: r.url,
         mergeable: r.mergeable.map(|m| m == "MERGEABLE"),
-        checks: r.status_check_rollup.into_iter().map(RawCheck::into_check).collect(),
+        checks: r
+            .status_check_rollup
+            .into_iter()
+            .map(RawCheck::into_check)
+            .collect(),
     }
 }
 
 /// Open PRs by head branch: `branch → (number, has_failing_checks)`.
 pub fn open_prs(repo: &Path) -> HashMap<String, (u32, bool)> {
-    let Some(out) = gh(repo, &["pr", "list", "--state", "open", "--limit", "100", "--json", "number,headRefName,statusCheckRollup"]) else {
+    let Some(out) = gh(
+        repo,
+        &[
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            "100",
+            "--json",
+            "number,headRefName,statusCheckRollup",
+        ],
+    ) else {
         return HashMap::new();
     };
     let prs: Vec<RawPr> = serde_json::from_str(&out).unwrap_or_default();
     prs.into_iter()
         .map(|r| {
-            let failing = r.status_check_rollup.into_iter().map(RawCheck::into_check).any(|c| c.state == CheckState::Failed);
+            let failing = r
+                .status_check_rollup
+                .into_iter()
+                .map(RawCheck::into_check)
+                .any(|c| c.state == CheckState::Failed);
             (r.head_ref_name, (r.number, failing))
         })
         .collect()
@@ -187,17 +263,37 @@ pub fn pr_for(worktree: &Path) -> Option<PullRequest> {
 
 /// Push the branch and open a PR (draft), filling title/body from commits.
 pub fn create_pr(worktree: &Path, base: &str) -> anyhow::Result<String> {
-    let branch = crate::git::current_branch(worktree).ok_or_else(|| anyhow::anyhow!("detached HEAD"))?;
+    let branch =
+        crate::git::current_branch(worktree).ok_or_else(|| anyhow::anyhow!("detached HEAD"))?;
     crate::git::run(worktree, &["push", "-u", "origin", &branch])?;
-    gh(worktree, &["pr", "create", "--fill", "--draft", "--base", base])
-        .map(|s| s.trim().to_string())
-        .ok_or_else(|| anyhow::anyhow!("gh pr create failed (is gh installed and logged in?)"))
+    gh(
+        worktree,
+        &["pr", "create", "--fill", "--draft", "--base", base],
+    )
+    .map(|s| s.trim().to_string())
+    .ok_or_else(|| anyhow::anyhow!("gh pr create failed (is gh installed and logged in?)"))
 }
 
 pub fn rerun_failed(worktree: &Path) -> bool {
     // Re-run the latest failed workflow run for this branch.
-    let Some(branch) = crate::git::current_branch(worktree) else { return false };
-    let Some(id) = gh(worktree, &["run", "list", "--branch", &branch, "--limit", "1", "--json", "databaseId", "--jq", ".[0].databaseId"]) else {
+    let Some(branch) = crate::git::current_branch(worktree) else {
+        return false;
+    };
+    let Some(id) = gh(
+        worktree,
+        &[
+            "run",
+            "list",
+            "--branch",
+            &branch,
+            "--limit",
+            "1",
+            "--json",
+            "databaseId",
+            "--jq",
+            ".[0].databaseId",
+        ],
+    ) else {
         return false;
     };
     gh(worktree, &["run", "rerun", id.trim(), "--failed"]).is_some()

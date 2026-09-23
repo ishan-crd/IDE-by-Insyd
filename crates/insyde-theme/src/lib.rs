@@ -2,7 +2,7 @@
 //! (`.theme-light` / `.theme-dark`). Views must read colors, radii and type
 //! sizes from here; no hex literals in the UI crate outside this file.
 
-use gpui::{App, BoxShadow, Global, Hsla, Pixels, Rgba, point, px, rgba};
+use gpui::{App, BoxShadow, Global, Hsla, Pixels, point, px, rgba};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -70,7 +70,7 @@ pub struct Palette {
 }
 
 fn hex(v: u32) -> Hsla {
-    Rgba::from(gpui::rgb(v)).into()
+    gpui::rgb(v).into()
 }
 
 impl Palette {
@@ -180,17 +180,45 @@ impl Theme {
             (rgba(0x1414131a), rgba(0x1414130f))
         };
         vec![
-            BoxShadow { color: a.into(), offset: point(px(0.), px(1.)), blur_radius: px(2.), spread_radius: px(0.), inset: false },
-            BoxShadow { color: b.into(), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+            BoxShadow {
+                color: a.into(),
+                offset: point(px(0.), px(1.)),
+                blur_radius: px(2.),
+                spread_radius: px(0.),
+                inset: false,
+            },
+            BoxShadow {
+                color: b.into(),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(1.),
+                inset: false,
+            },
         ]
     }
 
     /// `--shadow-pop` plus the larger drop used by menus and popovers.
     pub fn pop_shadow(&self, menu: bool) -> Vec<BoxShadow> {
-        let a = if self.is_dark() { rgba(0x00000099) } else { rgba(0x1414132e) };
-        let mut v = vec![BoxShadow { color: a.into(), offset: point(px(0.), px(4.)), blur_radius: px(12.), spread_radius: px(-4.), inset: false }];
+        let a = if self.is_dark() {
+            rgba(0x00000099)
+        } else {
+            rgba(0x1414132e)
+        };
+        let mut v = vec![BoxShadow {
+            color: a.into(),
+            offset: point(px(0.), px(4.)),
+            blur_radius: px(12.),
+            spread_radius: px(-4.),
+            inset: false,
+        }];
         if menu {
-            v.push(BoxShadow { color: rgba(0x00000059).into(), offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(-12.), inset: false });
+            v.push(BoxShadow {
+                color: rgba(0x00000059).into(),
+                offset: point(px(0.), px(12.)),
+                blur_radius: px(32.),
+                spread_radius: px(-12.),
+                inset: false,
+            });
         }
         v
     }

@@ -39,28 +39,50 @@ pub struct Worktree {
 
 impl Project {
     pub fn letter(&self) -> String {
-        self.name.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_ascii_uppercase().to_string()).unwrap_or_else(|| "?".into())
+        self.name
+            .chars()
+            .find(|c| c.is_alphanumeric())
+            .map(|c| c.to_ascii_uppercase().to_string())
+            .unwrap_or_else(|| "?".into())
     }
 
     pub fn from_row(row: &ProjectRow) -> Self {
-        Self { root: row.path.clone(), name: row.name.clone(), base: row.base.clone(), stack: detect_stack(&row.path), worktrees: vec![] }
+        Self {
+            root: row.path.clone(),
+            name: row.name.clone(),
+            base: row.base.clone(),
+            stack: detect_stack(&row.path),
+            worktrees: vec![],
+        }
     }
 
     /// Validate a folder and produce its store row.
     pub fn probe(path: &Path) -> anyhow::Result<ProjectRow> {
         let root = git::repo_root(path)?;
-        let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "repo".into());
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "repo".into());
         let base = git::default_branch(&root);
-        Ok(ProjectRow { path: root, name, base })
+        Ok(ProjectRow {
+            path: root,
+            name,
+            base,
+        })
     }
 
     /// Re-scan worktrees and their stats. Blocking; call off the UI thread.
     pub fn scan(&mut self, prs: &std::collections::HashMap<String, (u32, bool)>) {
-        let Ok(entries) = git::list_worktrees(&self.root) else { return };
+        let Ok(entries) = git::list_worktrees(&self.root) else {
+            return;
+        };
         self.worktrees = entries
             .into_iter()
             .map(|e| {
-                let branch = e.branch.clone().unwrap_or_else(|| format!("detached@{}", e.head));
+                let branch = e
+                    .branch
+                    .clone()
+                    .unwrap_or_else(|| format!("detached@{}", e.head));
                 let files = git::changed_files(&e.path, &self.base);
                 let stat = git::diff_stat(&files);
                 let pr = prs.get(&branch).copied();
@@ -99,16 +121,35 @@ impl Worktree {
 pub fn detect_stack(root: &Path) -> String {
     let read = |f: &str| std::fs::read_to_string(root.join(f)).ok();
     if let Some(pkg) = read("package.json") {
-        for (dep, label) in [("\"expo\"", "Expo"), ("\"next\"", "Next.js"), ("\"@remix-run", "Remix"), ("\"svelte", "Svelte"),
-            ("\"vue\"", "Vue"), ("\"react-native\"", "React Native"), ("\"electron\"", "Electron"), ("\"vite\"", "Vite"), ("\"react\"", "React")] {
+        for (dep, label) in [
+            ("\"expo\"", "Expo"),
+            ("\"next\"", "Next.js"),
+            ("\"@remix-run", "Remix"),
+            ("\"svelte", "Svelte"),
+            ("\"vue\"", "Vue"),
+            ("\"react-native\"", "React Native"),
+            ("\"electron\"", "Electron"),
+            ("\"vite\"", "Vite"),
+            ("\"react\"", "React"),
+        ] {
             if pkg.contains(dep) {
                 return label.into();
             }
         }
         return "Node".into();
     }
-    for (f, label) in [("Cargo.toml", "Rust"), ("go.mod", "Go"), ("pyproject.toml", "Python"), ("requirements.txt", "Python"),
-        ("Package.swift", "Swift"), ("build.gradle.kts", "Kotlin"), ("build.gradle", "Java"), ("pom.xml", "Java"), ("Gemfile", "Ruby"), ("mix.exs", "Elixir")] {
+    for (f, label) in [
+        ("Cargo.toml", "Rust"),
+        ("go.mod", "Go"),
+        ("pyproject.toml", "Python"),
+        ("requirements.txt", "Python"),
+        ("Package.swift", "Swift"),
+        ("build.gradle.kts", "Kotlin"),
+        ("build.gradle", "Java"),
+        ("pom.xml", "Java"),
+        ("Gemfile", "Ruby"),
+        ("mix.exs", "Elixir"),
+    ] {
         if root.join(f).exists() {
             return label.into();
         }

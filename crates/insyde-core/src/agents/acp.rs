@@ -9,7 +9,9 @@
 //! so a permission prompt that waits for the user is moved into a spawned
 //! task and the handler returns immediately.
 
-use super::transcript::{self, Item, PermissionPrompt, PlanEntry, ToolItem, ToolKind, ToolStatus, Transcript};
+use super::transcript::{
+    self, Item, PermissionPrompt, PlanEntry, ToolItem, ToolKind, ToolStatus, Transcript,
+};
 use super::{Cmd, augmented_path, which};
 use crate::store::{Store, now};
 use agent_client_protocol::schema::ProtocolVersion;
@@ -26,7 +28,10 @@ pub enum Block {
     Text(String),
     /// Extra context (brain digest, hand-off bundle) sent as an embedded
     /// resource so agents treat it as reference material, not instructions.
-    Context { uri: String, text: String },
+    Context {
+        uri: String,
+        text: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -93,7 +98,14 @@ impl AcpSession {
         }
         let policy = Arc::new(Mutex::new(policy));
         let (tx, rx) = flume::unbounded();
-        let ctx = Ctx { transcript: transcript.clone(), policy: policy.clone(), notify, cwd, persist, pending: Arc::new(Mutex::new(None)) };
+        let ctx = Ctx {
+            transcript: transcript.clone(),
+            policy: policy.clone(),
+            notify,
+            cwd,
+            persist,
+            pending: Arc::new(Mutex::new(None)),
+        };
         std::thread::Builder::new()
             .name("acp-session".into())
             .spawn(move || {
@@ -108,7 +120,11 @@ impl AcpSession {
                 }
             })
             .expect("spawn acp thread");
-        Self { transcript, policy, tx }
+        Self {
+            transcript,
+            policy,
+            tx,
+        }
     }
 
     pub fn prompt(&self, blocks: Vec<Block>) {
@@ -163,20 +179,31 @@ impl Ctx {
 
     /// Write finished items to the store.
     fn flush(&self) {
-        let Some((store, id)) = &self.persist else { return };
+        let Some((store, id)) = &self.persist else {
+            return;
+        };
         let mut t = self.transcript.lock();
         let from = t.persisted.min(t.items.len());
         for (i, it) in t.items.iter().enumerate().skip(from) {
             store.append_event(*id, i as i64, it);
         }
         t.persisted = t.items.len();
-        store.update_session(*id, None, None, Some(t.usage.used as i64), Some(t.usage.cost));
+        store.update_session(
+            *id,
+            None,
+            None,
+            Some(t.usage.used as i64),
+            Some(t.usage.cost),
+        );
     }
 }
 
 fn explain_error(e: &str, cmd: Cmd) -> String {
     if e.contains("No such file") || e.contains("not found") || e.contains("os error 2") {
-        format!("Couldn't start `{}`. Install it (or Node.js for npx-based agents) and try again.", cmd.program)
+        format!(
+            "Couldn't start `{}`. Install it (or Node.js for npx-based agents) and try again.",
+            cmd.program
+        )
     } else if e.to_lowercase().contains("auth") {
         format!("The agent needs you to log in. Run its CLI once in a terminal to sign in.\n\n{e}")
     } else {
@@ -185,7 +212,10 @@ fn explain_error(e: &str, cmd: Cmd) -> String {
 }
 
 fn rel(cwd: &Path, p: &Path) -> String {
-    p.strip_prefix(cwd).unwrap_or(p).to_string_lossy().into_owned()
+    p.strip_prefix(cwd)
+        .unwrap_or(p)
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn map_kind(k: &acp::ToolKind) -> ToolKind {
@@ -213,14 +243,23 @@ fn map_status(s: &acp::ToolCallStatus) -> ToolStatus {
 }
 
 /// Best "argument" to show for a tool call: a command, a path, or the title.
-fn tool_arg(cwd: &Path, title: &str, raw: Option<&serde_json::Value>, locs: &[acp::ToolCallLocation]) -> String {
+fn tool_arg(
+    cwd: &Path,
+    title: &str,
+    raw: Option<&serde_json::Value>,
+    locs: &[acp::ToolCallLocation],
+) -> String {
     if let Some(v) = raw {
         for k in ["command", "cmd"] {
             if let Some(s) = v.get(k).and_then(|x| x.as_str()) {
                 return s.lines().next().unwrap_or(s).to_string();
             }
             if let Some(a) = v.get(k).and_then(|x| x.as_array()) {
-                return a.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(" ");
+                return a
+                    .iter()
+                    .filter_map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
             }
         }
         for k in ["file_path", "path", "filePath", "notebook_path"] {
@@ -248,7 +287,8 @@ fn apply_content(t: &mut ToolItem, cwd: &Path, content: &[acp::ToolCallContent])
         match c {
             acp::ToolCallContent::Diff(d) => {
                 had_diff = true;
-                let (x, y) = transcript::diff_counts(d.old_text.as_deref().unwrap_or(""), &d.new_text);
+                let (x, y) =
+                    transcript::diff_counts(d.old_text.as_deref().unwrap_or(""), &d.new_text);
                 a += x;
                 r += y;
                 let p = rel(cwd, &d.path);
@@ -276,7 +316,11 @@ fn apply_content(t: &mut ToolItem, cwd: &Path, content: &[acp::ToolCallContent])
 fn finish_meta(t: &mut ToolItem) {
     if t.kind == ToolKind::Bash || t.kind == ToolKind::Search || t.kind == ToolKind::Fetch {
         let secs = t.ended.unwrap_or_else(now) - t.started;
-        let dur = if secs >= 60 { format!("{}m {}s", secs / 60, secs % 60) } else { format!("{secs}s") };
+        let dur = if secs >= 60 {
+            format!("{}m {}s", secs / 60, secs % 60)
+        } else {
+            format!("{secs}s")
+        };
         t.meta = match t.status {
             ToolStatus::Failed => format!("failed · {dur}"),
             _ => dur,
@@ -361,7 +405,12 @@ fn on_update(ctx: &Ctx, u: acp::SessionUpdate) {
                     active: matches!(e.status, acp::PlanEntryStatus::InProgress),
                 })
                 .collect();
-            if let Some(Item::Plan { entries: old }) = tr.items.iter_mut().rev().find(|i| matches!(i, Item::Plan { .. })) {
+            if let Some(Item::Plan { entries: old }) = tr
+                .items
+                .iter_mut()
+                .rev()
+                .find(|i| matches!(i, Item::Plan { .. }))
+            {
                 *old = entries;
             } else {
                 tr.items.push(Item::Plan { entries });
@@ -375,10 +424,18 @@ fn on_update(ctx: &Ctx, u: acp::SessionUpdate) {
             }
         }),
         acp::SessionUpdate::AvailableCommandsUpdate(c) => ctx.update(|tr| {
-            tr.commands = c.available_commands.into_iter().map(|c| (c.name, c.description)).collect();
+            tr.commands = c
+                .available_commands
+                .into_iter()
+                .map(|c| (c.name, c.description))
+                .collect();
         }),
-        acp::SessionUpdate::CurrentModeUpdate(m) => ctx.update(|tr| tr.mode = Some(m.current_mode_id.0.to_string())),
-        acp::SessionUpdate::ConfigOptionUpdate(c) => ctx.update(|tr| apply_config(tr, &c.config_options)),
+        acp::SessionUpdate::CurrentModeUpdate(m) => {
+            ctx.update(|tr| tr.mode = Some(m.current_mode_id.0.to_string()))
+        }
+        acp::SessionUpdate::ConfigOptionUpdate(c) => {
+            ctx.update(|tr| apply_config(tr, &c.config_options))
+        }
         _ => {}
     }
 }
@@ -393,10 +450,17 @@ fn apply_config(tr: &mut Transcript, opts: &[acp::SessionConfigOption]) {
             tr.model_config_id = Some(o.id.0.to_string());
             tr.model = Some(s.current_value.0.to_string());
             tr.models = match &s.options {
-                acp::SessionConfigSelectOptions::Ungrouped(v) => v.iter().map(|x| (x.value.0.to_string(), x.name.clone())).collect(),
+                acp::SessionConfigSelectOptions::Ungrouped(v) => v
+                    .iter()
+                    .map(|x| (x.value.0.to_string(), x.name.clone()))
+                    .collect(),
                 acp::SessionConfigSelectOptions::Grouped(g) => g
                     .iter()
-                    .flat_map(|g| g.options.iter().map(|x| (x.value.0.to_string(), x.name.clone())))
+                    .flat_map(|g| {
+                        g.options
+                            .iter()
+                            .map(|x| (x.value.0.to_string(), x.name.clone()))
+                    })
                     .collect(),
                 _ => vec![],
             };
@@ -409,29 +473,48 @@ fn to_acp(blocks: Vec<Block>) -> Vec<acp::ContentBlock> {
         .into_iter()
         .map(|b| match b {
             Block::Text(t) => acp::ContentBlock::Text(acp::TextContent::new(t)),
-            Block::Context { uri, text } => acp::ContentBlock::Resource(acp::EmbeddedResource::new(
-                acp::EmbeddedResourceResource::TextResourceContents(acp::TextResourceContents::new(text, uri).mime_type("text/markdown".to_string())),
-            )),
+            Block::Context { uri, text } => acp::ContentBlock::Resource(
+                acp::EmbeddedResource::new(acp::EmbeddedResourceResource::TextResourceContents(
+                    acp::TextResourceContents::new(text, uri)
+                        .mime_type("text/markdown".to_string()),
+                )),
+            ),
         })
         .collect()
 }
 
 /// Paths an agent may write through `fs/write_text_file`: inside the worktree.
 fn allowed(cwd: &Path, p: &Path) -> bool {
-    let target = p.parent().and_then(|d| d.canonicalize().ok()).unwrap_or_else(|| p.to_path_buf());
+    let target = p
+        .parent()
+        .and_then(|d| d.canonicalize().ok())
+        .unwrap_or_else(|| p.to_path_buf());
     let root = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
     target.starts_with(&root)
 }
 
-async fn run(cmd: Cmd, resume: Option<String>, ctx: Ctx, rx: flume::Receiver<Command>) -> anyhow::Result<()> {
-    let program = which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?;
-    let mut config = AcpAgentConfig::new(program).args(cmd.args.iter().copied()).env("PATH", augmented_path());
+async fn run(
+    cmd: Cmd,
+    resume: Option<String>,
+    ctx: Ctx,
+    rx: flume::Receiver<Command>,
+) -> anyhow::Result<()> {
+    let program =
+        which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?;
+    let mut config = AcpAgentConfig::new(program)
+        .args(cmd.args.iter().copied())
+        .env("PATH", augmented_path());
     if let Some(h) = dirs::home_dir() {
         config = config.env("HOME", h.to_string_lossy().to_string());
     }
     let mut agent = AcpAgent::new(config);
     if std::env::var_os("INSYDE_ACP_DEBUG").is_some() {
-        agent = agent.with_debug(|line, dir| eprintln!("[acp {dir:?}] {}", line.chars().take(400).collect::<String>()));
+        agent = agent.with_debug(|line, dir| {
+            eprintln!(
+                "[acp {dir:?}] {}",
+                line.chars().take(400).collect::<String>()
+            )
+        });
     }
 
     let n_ctx = ctx.clone();
@@ -467,13 +550,12 @@ async fn run(cmd: Cmd, resume: Option<String>, ctx: Ctx, rx: flume::Receiver<Com
                     .find(|o| matches!(o.kind, acp::PermissionOptionKind::AllowOnce))
                     .or_else(|| req.options.iter().find(|o| matches!(o.kind, acp::PermissionOptionKind::AllowAlways)))
                     .map(|o| o.option_id.clone());
-                if auto {
-                    if let Some(id) = allow_once {
+                if auto
+                    && let Some(id) = allow_once {
                         return responder.respond(acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Selected(
                             acp::SelectedPermissionOutcome::new(id),
                         )));
                     }
-                }
                 let (tx, rx) = flume::bounded::<Option<String>>(1);
                 *p_ctx.pending.lock() = Some(tx);
                 let cwd = p_ctx.cwd.clone();
@@ -671,7 +753,12 @@ async fn run(cmd: Cmd, resume: Option<String>, ctx: Ctx, rx: flume::Receiver<Com
 fn spawn_set_mode(conn: &ConnectionTo<Agent>, sid: &acp::SessionId, mode: String, ctx: &Ctx) {
     let (c2, sid, ctx) = (conn.clone(), sid.clone(), ctx.clone());
     let _ = conn.spawn(async move {
-        if c2.send_request(acp::SetSessionModeRequest::new(sid, mode.clone())).block_task().await.is_ok() {
+        if c2
+            .send_request(acp::SetSessionModeRequest::new(sid, mode.clone()))
+            .block_task()
+            .await
+            .is_ok()
+        {
             ctx.update(|t| t.mode = Some(mode));
         }
         Ok(())
@@ -679,11 +766,19 @@ fn spawn_set_mode(conn: &ConnectionTo<Agent>, sid: &acp::SessionId, mode: String
 }
 
 fn spawn_set_model(conn: &ConnectionTo<Agent>, sid: &acp::SessionId, model: String, ctx: &Ctx) {
-    let Some(config_id) = ctx.transcript.lock().model_config_id.clone() else { return };
+    let Some(config_id) = ctx.transcript.lock().model_config_id.clone() else {
+        return;
+    };
     let (c2, sid, ctx) = (conn.clone(), sid.clone(), ctx.clone());
     let _ = conn.spawn(async move {
         let value = acp::SessionConfigOptionValue::from(model.as_str());
-        if let Ok(r) = c2.send_request(acp::SetSessionConfigOptionRequest::new(sid, config_id, value)).block_task().await {
+        if let Ok(r) = c2
+            .send_request(acp::SetSessionConfigOptionRequest::new(
+                sid, config_id, value,
+            ))
+            .block_task()
+            .await
+        {
             ctx.update(|t| {
                 apply_config(t, &r.config_options);
                 t.model = Some(model);

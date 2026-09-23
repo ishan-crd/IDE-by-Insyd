@@ -7,7 +7,10 @@ use std::path::Path;
 pub fn grep(root: &Path, query: &str, limit: usize) -> Vec<(String, usize, String)> {
     let needle = query.to_lowercase();
     let mut out = Vec::new();
-    let walker = ignore::WalkBuilder::new(root).hidden(true).git_ignore(true).build();
+    let walker = ignore::WalkBuilder::new(root)
+        .hidden(true)
+        .git_ignore(true)
+        .build();
     for entry in walker.filter_map(|e| e.ok()) {
         if out.len() >= limit {
             break;
@@ -19,11 +22,17 @@ pub fn grep(root: &Path, query: &str, limit: usize) -> Vec<(String, usize, Strin
         if entry.metadata().map(|m| m.len() > 2 << 20).unwrap_or(true) {
             continue;
         }
-        let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().into_owned();
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .into_owned();
         if rel.to_lowercase().contains(&needle) {
             out.push((rel.clone(), 1, "(file name match)".into()));
         }
-        let Ok(f) = std::fs::File::open(path) else { continue };
+        let Ok(f) = std::fs::File::open(path) else {
+            continue;
+        };
         for (i, line) in BufReader::new(f).lines().enumerate() {
             let Ok(line) = line else { break }; // binary / invalid UTF-8
             if line.to_lowercase().contains(&needle) {

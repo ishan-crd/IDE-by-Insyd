@@ -69,7 +69,10 @@ impl AgentSpec {
     }
 
     pub fn get(id: AgentId) -> &'static AgentSpec {
-        AGENTS.iter().find(|a| a.id == id).expect("agent in registry")
+        AGENTS
+            .iter()
+            .find(|a| a.id == id)
+            .expect("agent in registry")
     }
 
     /// Whether the executable needed for `cmd` is on PATH.
@@ -84,26 +87,114 @@ const fn c(program: &'static str, args: &'static [&'static str]) -> Option<Cmd> 
 
 /// Order matches the design's agent picker (keys 1–9, then tools).
 pub static AGENTS: &[AgentSpec] = &[
-    AgentSpec { id: AgentId::Super, key: "super", name: "Super", mono: "S", tint: Tint::Outline,
-        acp: c("npx", &["-y", "@agentclientprotocol/claude-agent-acp@latest"]), tui: c("claude", &[]) },
-    AgentSpec { id: AgentId::Codex, key: "codex", name: "Codex", mono: "Cx", tint: Tint::Blue,
-        acp: c("npx", &["-y", "@agentclientprotocol/codex-acp@latest"]), tui: c("codex", &[]) },
-    AgentSpec { id: AgentId::ClaudeCode, key: "claude", name: "Claude Code", mono: "CC", tint: Tint::Orange,
-        acp: c("npx", &["-y", "@agentclientprotocol/claude-agent-acp@latest"]), tui: c("claude", &[]) },
-    AgentSpec { id: AgentId::OpenCode, key: "opencode", name: "OpenCode", mono: "OC", tint: Tint::Slate,
-        acp: c("opencode", &["acp"]), tui: c("opencode", &[]) },
-    AgentSpec { id: AgentId::Pi, key: "pi", name: "Pi", mono: "Pi", tint: Tint::Amber,
-        acp: c("npx", &["-y", "pi-acp@latest"]), tui: c("pi", &[]) },
-    AgentSpec { id: AgentId::OhMyPi, key: "omp", name: "Oh My Pi", mono: "π", tint: Tint::Purple,
-        acp: None, tui: c("omp", &[]) },
-    AgentSpec { id: AgentId::Grok, key: "grok", name: "Grok", mono: "G", tint: Tint::Graphite,
-        acp: c("npx", &["-y", "@xai-official/grok@latest", "agent", "stdio"]), tui: c("grok", &[]) },
-    AgentSpec { id: AgentId::Cursor, key: "cursor", name: "Cursor", mono: "Cu", tint: Tint::Stone,
-        acp: c("cursor-agent", &["acp"]), tui: c("cursor-agent", &[]) },
-    AgentSpec { id: AgentId::Antigravity, key: "antigravity", name: "Antigravity", mono: "A", tint: Tint::Teal,
-        acp: c("agy_acp_server", &[]), tui: c("agy", &[]) },
-    AgentSpec { id: AgentId::Browser, key: "browser", name: "Browser", mono: "◎", tint: Tint::Tool, acp: None, tui: None },
-    AgentSpec { id: AgentId::Terminal, key: "terminal", name: "Terminal", mono: "›_", tint: Tint::Tool, acp: None, tui: None },
+    AgentSpec {
+        id: AgentId::Super,
+        key: "super",
+        name: "Super",
+        mono: "S",
+        tint: Tint::Outline,
+        acp: c(
+            "npx",
+            &["-y", "@agentclientprotocol/claude-agent-acp@latest"],
+        ),
+        tui: c("claude", &[]),
+    },
+    AgentSpec {
+        id: AgentId::Codex,
+        key: "codex",
+        name: "Codex",
+        mono: "Cx",
+        tint: Tint::Blue,
+        acp: c("npx", &["-y", "@agentclientprotocol/codex-acp@latest"]),
+        tui: c("codex", &[]),
+    },
+    AgentSpec {
+        id: AgentId::ClaudeCode,
+        key: "claude",
+        name: "Claude Code",
+        mono: "CC",
+        tint: Tint::Orange,
+        acp: c(
+            "npx",
+            &["-y", "@agentclientprotocol/claude-agent-acp@latest"],
+        ),
+        tui: c("claude", &[]),
+    },
+    AgentSpec {
+        id: AgentId::OpenCode,
+        key: "opencode",
+        name: "OpenCode",
+        mono: "OC",
+        tint: Tint::Slate,
+        acp: c("opencode", &["acp"]),
+        tui: c("opencode", &[]),
+    },
+    AgentSpec {
+        id: AgentId::Pi,
+        key: "pi",
+        name: "Pi",
+        mono: "Pi",
+        tint: Tint::Amber,
+        acp: c("npx", &["-y", "pi-acp@latest"]),
+        tui: c("pi", &[]),
+    },
+    AgentSpec {
+        id: AgentId::OhMyPi,
+        key: "omp",
+        name: "Oh My Pi",
+        mono: "π",
+        tint: Tint::Purple,
+        acp: None,
+        tui: c("omp", &[]),
+    },
+    AgentSpec {
+        id: AgentId::Grok,
+        key: "grok",
+        name: "Grok",
+        mono: "G",
+        tint: Tint::Graphite,
+        acp: c(
+            "npx",
+            &["-y", "@xai-official/grok@latest", "agent", "stdio"],
+        ),
+        tui: c("grok", &[]),
+    },
+    AgentSpec {
+        id: AgentId::Cursor,
+        key: "cursor",
+        name: "Cursor",
+        mono: "Cu",
+        tint: Tint::Stone,
+        acp: c("cursor-agent", &["acp"]),
+        tui: c("cursor-agent", &[]),
+    },
+    AgentSpec {
+        id: AgentId::Antigravity,
+        key: "antigravity",
+        name: "Antigravity",
+        mono: "A",
+        tint: Tint::Teal,
+        acp: c("agy_acp_server", &[]),
+        tui: c("agy", &[]),
+    },
+    AgentSpec {
+        id: AgentId::Browser,
+        key: "browser",
+        name: "Browser",
+        mono: "◎",
+        tint: Tint::Tool,
+        acp: None,
+        tui: None,
+    },
+    AgentSpec {
+        id: AgentId::Terminal,
+        key: "terminal",
+        name: "Terminal",
+        mono: "›_",
+        tint: Tint::Tool,
+        acp: None,
+        tui: None,
+    },
 ];
 
 /// Default agent for quick-add ("+ Agent") — Claude Code, as in the design.
@@ -112,22 +203,41 @@ pub const DEFAULT_AGENT: AgentId = AgentId::ClaudeCode;
 /// PATH lookup, also checking common install dirs that GUI apps on macOS
 /// don't inherit (Homebrew, npm/fnm/volta shims, ~/.local/bin, cargo).
 pub fn which(program: &str) -> Option<PathBuf> {
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
     if let Some(h) = dirs::home_dir() {
-        for d in [".local/bin", ".cargo/bin", ".volta/bin", ".bun/bin", ".npm-global/bin", ".opencode/bin"] {
+        for d in [
+            ".local/bin",
+            ".cargo/bin",
+            ".volta/bin",
+            ".bun/bin",
+            ".npm-global/bin",
+            ".opencode/bin",
+        ] {
             dirs.push(h.join(d));
         }
     }
     dirs.extend(["/opt/homebrew/bin", "/usr/local/bin"].map(PathBuf::from));
-    dirs.into_iter().map(|d| d.join(program)).find(|p| p.is_file())
+    dirs.into_iter()
+        .map(|d| d.join(program))
+        .find(|p| p.is_file())
 }
 
 /// A PATH that includes the common install dirs above, so agents launched
 /// from a Finder-started app can find `node`, `git`, `gh`… exactly like a shell.
 pub fn augmented_path() -> String {
-    let mut parts: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut parts: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
     if let Some(h) = dirs::home_dir() {
-        for d in [".local/bin", ".cargo/bin", ".volta/bin", ".bun/bin", ".npm-global/bin"] {
+        for d in [
+            ".local/bin",
+            ".cargo/bin",
+            ".volta/bin",
+            ".bun/bin",
+            ".npm-global/bin",
+        ] {
             parts.push(h.join(d));
         }
     }
@@ -140,7 +250,9 @@ pub fn augmented_path() -> String {
     }
     let mut seen = std::collections::HashSet::new();
     parts.retain(|p| seen.insert(p.clone()));
-    std::env::join_paths(parts).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
+    std::env::join_paths(parts)
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 fn login_shell_node_dir() -> Option<PathBuf> {
@@ -148,7 +260,11 @@ fn login_shell_node_dir() -> Option<PathBuf> {
     static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
     DIR.get_or_init(|| {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
-        let out = std::process::Command::new(shell).args(["-lic", "command -v node"]).stdin(std::process::Stdio::null()).output().ok()?;
+        let out = std::process::Command::new(shell)
+            .args(["-lic", "command -v node"])
+            .stdin(std::process::Stdio::null())
+            .output()
+            .ok()?;
         let s = String::from_utf8_lossy(&out.stdout);
         let line = s.lines().rev().find(|l| l.trim_start().starts_with('/'))?;
         PathBuf::from(line.trim()).parent().map(PathBuf::from)

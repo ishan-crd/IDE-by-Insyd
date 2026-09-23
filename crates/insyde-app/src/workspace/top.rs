@@ -7,7 +7,12 @@ use gpui::{AnyElement, Context, FontWeight, Window, div, px};
 use insyde_theme::{Theme, metrics};
 
 impl Workspace {
-    pub(super) fn render_top(&mut self, t: &Theme, _w: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_top(
+        &mut self,
+        t: &Theme,
+        _w: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let (running, review) = self.counts(cx);
         let cost = self.store.total_cost();
         let brain: AnyElement = match self.project().map(|p| &p.brain) {
@@ -23,7 +28,12 @@ impl Workspace {
                         .child("Create Brain")
                         .on_click(cx.listener(|this, _, _, cx| this.build_brain(cx))),
                 )
-                .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child("Persistent project context from main"))
+                .child(
+                    div()
+                        .text_size(metrics::TEXT_SM)
+                        .text_color(t.ink_3)
+                        .child("Persistent project context from main"),
+                )
                 .into_any_element(),
             Some(BrainState::Building { pct, label }) => div()
                 .flex()
@@ -42,9 +52,28 @@ impl Workspace {
                         .text_size(metrics::TEXT_XS)
                         .text_color(t.ink_2)
                         .child(ui::trunc(label.clone()).flex_1())
-                        .child(div().ml_auto().font_weight(FontWeight::MEDIUM).text_color(t.ink).child(format!("{pct}%"))),
+                        .child(
+                            div()
+                                .ml_auto()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.ink)
+                                .child(format!("{pct}%")),
+                        ),
                 )
-                .child(div().h(px(3.)).rounded(px(3.)).bg(t.line).overflow_hidden().child(div().h_full().w(gpui::relative(*pct as f32 / 100.)).bg(t.primary).rounded(px(3.))))
+                .child(
+                    div()
+                        .h(px(3.))
+                        .rounded(px(3.))
+                        .bg(t.line)
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .h_full()
+                                .w(gpui::relative(*pct as f32 / 100.))
+                                .bg(t.primary)
+                                .rounded(px(3.)),
+                        ),
+                )
                 .into_any_element(),
             Some(BrainState::Ready { handle, updated }) => {
                 let n = handle.node_count();
@@ -93,7 +122,12 @@ impl Workspace {
                             .child("Update")
                             .on_click(cx.listener(|this, _, _, cx| this.build_brain(cx))),
                     )
-                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(format!("Updated {}", insyde_core::git::ago(*updated))))
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child(format!("Updated {}", insyde_core::git::ago(*updated))),
+                    )
                     .into_any_element()
             }
         };
@@ -120,16 +154,33 @@ impl Workspace {
                     .mr(px(4.))
                     .border_r_1()
                     .border_color(t.line)
-                    .child(div().text_size(metrics::TEXT_TITLE).font_weight(FontWeight::SEMIBOLD).text_color(t.ink).child("InsyDE"))
-                    .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child("by Insyd")),
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_TITLE)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t.ink)
+                            .child("InsyDE"),
+                    )
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_SM)
+                            .text_color(t.ink_3)
+                            .child("by Insyd"),
+                    ),
             )
             .child(div().ml(px(2.)).child(brain))
             .child(div().flex_1())
-            .child(div().mr(px(6.)).text_size(metrics::TEXT_SM).text_color(t.ink_3).child(format!(
-                "{running} agent{} running · {review} need{} review",
-                if running == 1 { "" } else { "s" },
-                if review == 1 { "s" } else { "" }
-            )))
+            .child(
+                div()
+                    .mr(px(6.))
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child(format!(
+                        "{running} agent{} running · {review} need{} review",
+                        if running == 1 { "" } else { "s" },
+                        if review == 1 { "s" } else { "" }
+                    )),
+            )
             .child(
                 div()
                     .flex()
@@ -154,12 +205,26 @@ impl Workspace {
                         })),
                 )
             })
-            .child(ui::button("layout", t).w(metrics::CONTROL_H).px_0().justify_center().child(icon("layout", 15., t.ink)).on_click(cx.listener(|this, _, _, cx| {
-                this.prefs.show_right = !this.prefs.show_right;
-                this.save_prefs();
-                cx.notify();
-            })))
-            .child(ui::button("theme", t).w(metrics::CONTROL_H).px_0().justify_center().child(icon(if dark { "sun" } else { "moon" }, 15., t.ink)).on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))))
+            .child(
+                ui::button("layout", t)
+                    .w(metrics::CONTROL_H)
+                    .px_0()
+                    .justify_center()
+                    .child(icon("layout", 15., t.ink))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.prefs.show_right = !this.prefs.show_right;
+                        this.save_prefs();
+                        cx.notify();
+                    })),
+            )
+            .child(
+                ui::button("theme", t)
+                    .w(metrics::CONTROL_H)
+                    .px_0()
+                    .justify_center()
+                    .child(icon(if dark { "sun" } else { "moon" }, 15., t.ink))
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
+            )
             .child(
                 ui::primary_button("create-pr", t)
                     .ml(px(2.))
@@ -181,8 +246,37 @@ fn brain_colored(t: &Theme) -> gpui::Div {
         .relative()
         .size(px(15.))
         .flex_none()
-        .child(icon("brain-links", 15., t.ink_3).absolute().top_0().left_0())
-        .child(div().absolute().left(px(1.8)).top(px(2.3)).size(px(4.1)).rounded_full().bg(p.blue))
-        .child(div().absolute().left(px(10.3)).top(px(2.3)).size(px(3.3)).rounded_full().bg(p.red))
-        .child(div().absolute().left(px(5.9)).top(px(9.8)).size(px(4.1)).rounded_full().bg(p.green))
+        .child(
+            icon("brain-links", 15., t.ink_3)
+                .absolute()
+                .top_0()
+                .left_0(),
+        )
+        .child(
+            div()
+                .absolute()
+                .left(px(1.8))
+                .top(px(2.3))
+                .size(px(4.1))
+                .rounded_full()
+                .bg(p.blue),
+        )
+        .child(
+            div()
+                .absolute()
+                .left(px(10.3))
+                .top(px(2.3))
+                .size(px(3.3))
+                .rounded_full()
+                .bg(p.red),
+        )
+        .child(
+            div()
+                .absolute()
+                .left(px(5.9))
+                .top(px(9.8))
+                .size(px(4.1))
+                .rounded_full()
+                .bg(p.green),
+        )
 }

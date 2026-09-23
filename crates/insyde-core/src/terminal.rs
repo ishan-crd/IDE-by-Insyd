@@ -91,7 +91,12 @@ impl Dimensions for Size {
 
 impl From<Size> for WindowSize {
     fn from(s: Size) -> Self {
-        WindowSize { num_lines: s.rows, num_cols: s.cols, cell_width: s.cell_w as u16, cell_height: s.cell_h as u16 }
+        WindowSize {
+            num_lines: s.rows,
+            num_cols: s.cols,
+            cell_width: s.cell_w as u16,
+            cell_height: s.cell_h as u16,
+        }
     }
 }
 
@@ -131,9 +136,21 @@ impl TerminalSession {
         let pending = Arc::new(AtomicBool::new(false));
         let writer = Arc::new(Mutex::new(None));
         let clipboard = Arc::new(Mutex::new(None));
-        let listener = Listener { notify, pending: pending.clone(), writer: writer.clone(), clipboard: clipboard.clone() };
-        let config = Config { scrolling_history: opts.scrollback, ..Config::default() };
-        let term = Arc::new(FairMutex::new(Term::new(config, &opts.size, listener.clone())));
+        let listener = Listener {
+            notify,
+            pending: pending.clone(),
+            writer: writer.clone(),
+            clipboard: clipboard.clone(),
+        };
+        let config = Config {
+            scrolling_history: opts.scrollback,
+            ..Config::default()
+        };
+        let term = Arc::new(FairMutex::new(Term::new(
+            config,
+            &opts.size,
+            listener.clone(),
+        )));
         let pty = tty::new(&pty_opts, opts.size.into(), 0)?;
         #[cfg(unix)]
         let pid = pty.child().id();
@@ -143,7 +160,15 @@ impl TerminalSession {
         let sender = event_loop.channel();
         *writer.lock() = Some(sender.clone());
         event_loop.spawn();
-        Ok(Self { term, sender, pending, size: Mutex::new(opts.size), cwd: opts.cwd, pid, clipboard })
+        Ok(Self {
+            term,
+            sender,
+            pending,
+            size: Mutex::new(opts.size),
+            cwd: opts.cwd,
+            pid,
+            clipboard,
+        })
     }
 
     /// Call when a frame consumed the dirty signal, re-arming notifications.
@@ -240,5 +265,11 @@ pub type PtyNotifier = Notifier;
 
 /// The user's login shell.
 pub fn default_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| if cfg!(windows) { "powershell.exe".into() } else { "/bin/zsh".into() })
+    std::env::var("SHELL").unwrap_or_else(|_| {
+        if cfg!(windows) {
+            "powershell.exe".into()
+        } else {
+            "/bin/zsh".into()
+        }
+    })
 }

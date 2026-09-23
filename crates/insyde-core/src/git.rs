@@ -81,7 +81,10 @@ pub fn try_run(cwd: &Path, args: &[&str]) -> Option<String> {
 
 pub fn repo_root(path: &Path) -> Result<PathBuf> {
     // `--git-common-dir` resolves to the main repo even from a linked worktree.
-    let common = run(path, &["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
+    let common = run(
+        path,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )?;
     let common = PathBuf::from(common.trim());
     let root = if common.file_name().is_some_and(|n| n == ".git") {
         common.parent().map(Path::to_path_buf).unwrap_or(common)
@@ -94,13 +97,30 @@ pub fn repo_root(path: &Path) -> Result<PathBuf> {
 /// The branch new work should be based on: `origin/HEAD`'s target, else
 /// `main`, else `master`, else the current branch.
 pub fn default_branch(repo: &Path) -> String {
-    if let Some(s) = try_run(repo, &["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]) {
-        if let Some(b) = s.trim().strip_prefix("origin/") {
-            return b.to_string();
-        }
+    if let Some(s) = try_run(
+        repo,
+        &[
+            "symbolic-ref",
+            "--quiet",
+            "--short",
+            "refs/remotes/origin/HEAD",
+        ],
+    ) && let Some(b) = s.trim().strip_prefix("origin/")
+    {
+        return b.to_string();
     }
     for b in ["main", "master", "trunk", "develop"] {
-        if try_run(repo, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{b}")]).is_some() {
+        if try_run(
+            repo,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("refs/heads/{b}"),
+            ],
+        )
+        .is_some()
+        {
             return b.to_string();
         }
     }
@@ -189,20 +209,39 @@ pub fn slugify_branch(title: &str) -> String {
         }
     }
     let slug = slug.trim_end_matches('-');
-    if slug.is_empty() { format!("{prefix}/task") } else { format!("{prefix}/{slug}") }
+    if slug.is_empty() {
+        format!("{prefix}/task")
+    } else {
+        format!("{prefix}/{slug}")
+    }
 }
 
 /// Default directory for task worktrees: `<repo>/../.insyde-worktrees/<repo-name>`.
 pub fn worktrees_dir(repo: &Path) -> PathBuf {
-    let name = repo.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "repo".into());
-    repo.parent().unwrap_or(repo).join(".insyde-worktrees").join(name)
+    let name = repo
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "repo".into());
+    repo.parent()
+        .unwrap_or(repo)
+        .join(".insyde-worktrees")
+        .join(name)
 }
 
 pub fn add_worktree(repo: &Path, branch: &str, base: &str) -> Result<PathBuf> {
     let dir = worktrees_dir(repo).join(branch.replace('/', "-"));
     std::fs::create_dir_all(dir.parent().unwrap())?;
     let d = dir.to_string_lossy();
-    let exists = try_run(repo, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")]).is_some();
+    let exists = try_run(
+        repo,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ],
+    )
+    .is_some();
     if exists {
         run(repo, &["worktree", "add", &d, branch])?;
     } else {
@@ -253,7 +292,11 @@ fn parse_numstat_z(out: &str) -> Vec<FileStat> {
             continue;
         }
         let mut parts = rec.splitn(3, '\t');
-        let (a, d, p) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+        let (a, d, p) = (
+            parts.next().unwrap_or(""),
+            parts.next().unwrap_or(""),
+            parts.next().unwrap_or(""),
+        );
         let path = if p.is_empty() {
             let _old = it.next();
             it.next().unwrap_or("").to_string()
@@ -261,7 +304,12 @@ fn parse_numstat_z(out: &str) -> Vec<FileStat> {
             p.to_string()
         };
         let binary = a == "-";
-        v.push(FileStat { path, added: a.parse().unwrap_or(0), removed: d.parse().unwrap_or(0), binary });
+        v.push(FileStat {
+            path,
+            added: a.parse().unwrap_or(0),
+            removed: d.parse().unwrap_or(0),
+            binary,
+        });
     }
     v
 }
@@ -271,12 +319,21 @@ fn parse_numstat_z(out: &str) -> Vec<FileStat> {
 pub fn changed_files(cwd: &Path, base: &str) -> Vec<FileStat> {
     let mb = try_run(cwd, &["merge-base", "HEAD", base]).map(|s| s.trim().to_string());
     let range = mb.unwrap_or_else(|| "HEAD".into());
-    let mut files = try_run(cwd, &["diff", "--numstat", "-z", &range, "--"]).map(|s| parse_numstat_z(&s)).unwrap_or_default();
+    let mut files = try_run(cwd, &["diff", "--numstat", "-z", &range, "--"])
+        .map(|s| parse_numstat_z(&s))
+        .unwrap_or_default();
     // Untracked files count as additions.
     if let Some(u) = try_run(cwd, &["ls-files", "--others", "--exclude-standard", "-z"]) {
         for p in u.split('\0').filter(|p| !p.is_empty()).take(500) {
-            let lines = std::fs::read(cwd.join(p)).map(|b| bytecount_lines(&b)).unwrap_or(0);
-            files.push(FileStat { path: p.to_string(), added: lines, removed: 0, binary: false });
+            let lines = std::fs::read(cwd.join(p))
+                .map(|b| bytecount_lines(&b))
+                .unwrap_or(0);
+            files.push(FileStat {
+                path: p.to_string(),
+                added: lines,
+                removed: 0,
+                binary: false,
+            });
         }
     }
     files
@@ -300,12 +357,30 @@ pub fn diff_stat(files: &[FileStat]) -> DiffStat {
 
 /// Unified patch for one file relative to the merge-base (or for an untracked file).
 pub fn file_patch(cwd: &Path, base: &str, path: &str) -> String {
-    let range = try_run(cwd, &["merge-base", "HEAD", base]).map(|s| s.trim().to_string()).unwrap_or_else(|| "HEAD".into());
+    let range = try_run(cwd, &["merge-base", "HEAD", base])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "HEAD".into());
     let tracked = try_run(cwd, &["ls-files", "--error-unmatch", "--", path]).is_some();
     if tracked {
-        try_run(cwd, &["diff", "--no-ext-diff", "--no-color", "-U3", &range, "--", path]).unwrap_or_default()
+        try_run(
+            cwd,
+            &[
+                "diff",
+                "--no-ext-diff",
+                "--no-color",
+                "-U3",
+                &range,
+                "--",
+                path,
+            ],
+        )
+        .unwrap_or_default()
     } else {
-        try_run(cwd, &["diff", "--no-index", "--no-color", "--", "/dev/null", path]).unwrap_or_else(|| {
+        try_run(
+            cwd,
+            &["diff", "--no-index", "--no-color", "--", "/dev/null", path],
+        )
+        .unwrap_or_else(|| {
             // `diff --no-index` exits 1 when files differ; fall back to raw content.
             let body = std::fs::read_to_string(cwd.join(path)).unwrap_or_default();
             let mut s = format!("@@ -0,0 +1,{} @@\n", body.lines().count());
@@ -321,8 +396,14 @@ pub fn file_patch(cwd: &Path, base: &str, path: &str) -> String {
 
 /// Full patch (capped) of the worktree vs base — used for agent hand-off.
 pub fn full_patch(cwd: &Path, base: &str, max_bytes: usize) -> String {
-    let range = try_run(cwd, &["merge-base", "HEAD", base]).map(|s| s.trim().to_string()).unwrap_or_else(|| "HEAD".into());
-    let mut p = try_run(cwd, &["diff", "--no-ext-diff", "--no-color", "-U2", &range, "--"]).unwrap_or_default();
+    let range = try_run(cwd, &["merge-base", "HEAD", base])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "HEAD".into());
+    let mut p = try_run(
+        cwd,
+        &["diff", "--no-ext-diff", "--no-color", "-U2", &range, "--"],
+    )
+    .unwrap_or_default();
     if p.len() > max_bytes {
         let mut cut = max_bytes;
         while !p.is_char_boundary(cut) {
@@ -336,7 +417,10 @@ pub fn full_patch(cwd: &Path, base: &str, max_bytes: usize) -> String {
 
 /// `(ahead, behind)` relative to the upstream, if any.
 pub fn ahead_behind(cwd: &Path) -> Option<(u32, u32)> {
-    let s = try_run(cwd, &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])?;
+    let s = try_run(
+        cwd,
+        &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+    )?;
     let mut it = s.split_whitespace();
     Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?))
 }
@@ -352,7 +436,10 @@ pub fn has_conflicts(cwd: &Path) -> bool {
 
 /// Human "3m ago" style from unix seconds.
 pub fn ago(ts: i64) -> String {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(ts);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(ts);
     let d = (now - ts).max(0);
     match d {
         0..=59 => "just now".into(),
@@ -369,14 +456,20 @@ mod tests {
 
     #[test]
     fn slugs() {
-        assert_eq!(slugify_branch("Fix Android permission layout shift"), "feat/fix-android-permission-layout-shift");
-        assert_eq!(slugify_branch("fix/Push token refresh!"), "fix/push-token-refresh");
+        assert_eq!(
+            slugify_branch("Fix Android permission layout shift"),
+            "feat/fix-android-permission-layout-shift"
+        );
+        assert_eq!(
+            slugify_branch("fix/Push token refresh!"),
+            "fix/push-token-refresh"
+        );
         assert_eq!(slugify_branch("  "), "feat/task");
     }
 
     #[test]
     fn numstat() {
-        let s = "3\t1\tsrc/a.rs\0-\t-\tlogo.png\0" .to_string() + "2\t0\t\0old.rs\0new.rs\0";
+        let s = "3\t1\tsrc/a.rs\0-\t-\tlogo.png\0".to_string() + "2\t0\t\0old.rs\0new.rs\0";
         let v = parse_numstat_z(&s);
         assert_eq!(v.len(), 3);
         assert_eq!(v[0].added, 3);

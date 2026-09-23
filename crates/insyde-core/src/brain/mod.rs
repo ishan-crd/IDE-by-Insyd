@@ -33,7 +33,16 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 8] = [Kind::Module, Kind::File, Kind::Symbol, Kind::Decision, Kind::Convention, Kind::Api, Kind::Pr, Kind::Doc];
+    pub const ALL: [Kind; 8] = [
+        Kind::Module,
+        Kind::File,
+        Kind::Symbol,
+        Kind::Decision,
+        Kind::Convention,
+        Kind::Api,
+        Kind::Pr,
+        Kind::Doc,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -66,10 +75,20 @@ impl Kind {
         self as i64
     }
     fn from_code(c: i64) -> Kind {
-        [Kind::Root, Kind::Module, Kind::File, Kind::Symbol, Kind::Decision, Kind::Convention, Kind::Api, Kind::Pr, Kind::Doc]
-            .get(c as usize)
-            .copied()
-            .unwrap_or(Kind::Doc)
+        [
+            Kind::Root,
+            Kind::Module,
+            Kind::File,
+            Kind::Symbol,
+            Kind::Decision,
+            Kind::Convention,
+            Kind::Api,
+            Kind::Pr,
+            Kind::Doc,
+        ]
+        .get(c as usize)
+        .copied()
+        .unwrap_or(Kind::Doc)
     }
     /// Kinds pinned into every agent context by default.
     pub fn pinned_by_default(self) -> bool {
@@ -160,7 +179,10 @@ fn db_path(repo: &Path) -> PathBuf {
     repo.hash(&mut h);
     let dir = crate::store::data_dir().join("brains");
     let _ = std::fs::create_dir_all(&dir);
-    let name = repo.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = repo
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
     dir.join(format!("{name}-{:016x}.db", h.finish()))
 }
 
@@ -169,7 +191,11 @@ impl Brain {
     pub fn open(repo: &Path, base: &str) -> Result<Self> {
         let conn = Connection::open(db_path(repo))?;
         conn.execute_batch(SCHEMA)?;
-        Ok(Self { conn: Mutex::new(conn), repo: repo.to_path_buf(), base: base.to_string() })
+        Ok(Self {
+            conn: Mutex::new(conn),
+            repo: repo.to_path_buf(),
+            base: base.to_string(),
+        })
     }
 
     pub fn exists(repo: &Path) -> bool {
@@ -187,7 +213,8 @@ impl Brain {
         let old = self.load().unwrap_or_default();
         let mut g = index::build(&self.repo, &self.base, progress.clone())?;
         // Merge user state by stable key.
-        let by_key: std::collections::HashMap<&str, &Node> = old.nodes.iter().map(|n| (n.key.as_str(), n)).collect();
+        let by_key: std::collections::HashMap<&str, &Node> =
+            old.nodes.iter().map(|n| (n.key.as_str(), n)).collect();
         for n in &mut g.nodes {
             if let Some(o) = by_key.get(n.key.as_str()) {
                 n.pinned = o.pinned;
@@ -196,10 +223,19 @@ impl Brain {
             }
         }
         // Re-link note references ([[Name]]) after the merge.
-        let notes: Vec<(usize, String)> = g.nodes.iter().filter(|n| !n.note.is_empty()).map(|n| (n.id, n.note.clone())).collect();
+        let notes: Vec<(usize, String)> = g
+            .nodes
+            .iter()
+            .filter(|n| !n.note.is_empty())
+            .map(|n| (n.id, n.note.clone()))
+            .collect();
         for (id, note) in notes {
             for target in note_refs(&note) {
-                if let Some(t) = g.nodes.iter().find(|n| n.name.eq_ignore_ascii_case(&target)) {
+                if let Some(t) = g
+                    .nodes
+                    .iter()
+                    .find(|n| n.name.eq_ignore_ascii_case(&target))
+                {
                     g.edges.push((id, t.id, EdgeKind::Cross));
                 }
             }
@@ -218,7 +254,8 @@ impl Brain {
             let mut ins = tx.prepare(
                 "INSERT INTO nodes(id,key,kind,name,grp,summary,path,tokens,changed,pinned,uses,note) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
             )?;
-            let mut fts = tx.prepare("INSERT INTO nodes_fts(rowid,name,summary,note) VALUES(?1,?2,?3,?4)")?;
+            let mut fts =
+                tx.prepare("INSERT INTO nodes_fts(rowid,name,summary,note) VALUES(?1,?2,?3,?4)")?;
             for n in &g.nodes {
                 ins.execute(params![
                     n.id as i64,
@@ -244,8 +281,14 @@ impl Brain {
             for (i, name) in g.groups.iter().enumerate() {
                 gr.execute(params![i as i64, name])?;
             }
-            tx.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('sha',?1)", params![g.sha])?;
-            tx.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('built_at',?1)", params![g.built_at.to_string()])?;
+            tx.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES('sha',?1)",
+                params![g.sha],
+            )?;
+            tx.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES('built_at',?1)",
+                params![g.built_at.to_string()],
+            )?;
         }
         tx.commit()?;
         Ok(())
@@ -253,7 +296,12 @@ impl Brain {
 
     pub fn load(&self) -> Result<Graph> {
         let c = self.conn.lock();
-        let meta = |k: &str| -> String { c.query_row("SELECT value FROM meta WHERE key=?1", params![k], |r| r.get(0)).unwrap_or_default() };
+        let meta = |k: &str| -> String {
+            c.query_row("SELECT value FROM meta WHERE key=?1", params![k], |r| {
+                r.get(0)
+            })
+            .unwrap_or_default()
+        };
         let sha = meta("sha");
         let built_at = meta("built_at").parse().unwrap_or(0);
         let mut st = c.prepare("SELECT id,key,kind,name,grp,summary,path,tokens,changed,pinned,uses,note FROM nodes ORDER BY id")?;
@@ -286,31 +334,70 @@ impl Brain {
                     2 => EdgeKind::Sym,
                     _ => EdgeKind::Cross,
                 };
-                Ok((r.get::<_, i64>(0)? as usize, r.get::<_, i64>(1)? as usize, k))
+                Ok((
+                    r.get::<_, i64>(0)? as usize,
+                    r.get::<_, i64>(1)? as usize,
+                    k,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         let mut st = c.prepare("SELECT name FROM groups ORDER BY id")?;
-        let groups = st.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
-        Ok(Graph { nodes, edges, groups, sha, built_at })
+        let groups = st
+            .query_map([], |r| r.get(0))?
+            .collect::<Result<Vec<String>, _>>()?;
+        Ok(Graph {
+            nodes,
+            edges,
+            groups,
+            sha,
+            built_at,
+        })
     }
 
     pub fn set_pinned(&self, id: usize, pinned: bool) {
-        let _ = self.conn.lock().execute("UPDATE nodes SET pinned=?2 WHERE id=?1", params![id as i64, pinned as i64]);
+        let _ = self.conn.lock().execute(
+            "UPDATE nodes SET pinned=?2 WHERE id=?1",
+            params![id as i64, pinned as i64],
+        );
     }
 
     /// Save a user note and index it; returns the ids it references.
     pub fn set_note(&self, id: usize, note: &str, graph: &Graph) -> Vec<usize> {
         let c = self.conn.lock();
         let old: (String, String, String) = c
-            .query_row("SELECT name,summary,note FROM nodes WHERE id=?1", params![id as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .query_row(
+                "SELECT name,summary,note FROM nodes WHERE id=?1",
+                params![id as i64],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
             .unwrap_or_default();
-        let _ = c.execute("INSERT INTO nodes_fts(nodes_fts,rowid,name,summary,note) VALUES('delete',?1,?2,?3,?4)", params![id as i64, old.0, old.1, old.2]);
-        let _ = c.execute("UPDATE nodes SET note=?2 WHERE id=?1", params![id as i64, note]);
-        let _ = c.execute("INSERT INTO nodes_fts(rowid,name,summary,note) VALUES(?1,?2,?3,?4)", params![id as i64, old.0, old.1, note]);
-        let targets: Vec<usize> =
-            note_refs(note).iter().filter_map(|t| graph.nodes.iter().find(|n| n.name.eq_ignore_ascii_case(t)).map(|n| n.id)).collect();
+        let _ = c.execute(
+            "INSERT INTO nodes_fts(nodes_fts,rowid,name,summary,note) VALUES('delete',?1,?2,?3,?4)",
+            params![id as i64, old.0, old.1, old.2],
+        );
+        let _ = c.execute(
+            "UPDATE nodes SET note=?2 WHERE id=?1",
+            params![id as i64, note],
+        );
+        let _ = c.execute(
+            "INSERT INTO nodes_fts(rowid,name,summary,note) VALUES(?1,?2,?3,?4)",
+            params![id as i64, old.0, old.1, note],
+        );
+        let targets: Vec<usize> = note_refs(note)
+            .iter()
+            .filter_map(|t| {
+                graph
+                    .nodes
+                    .iter()
+                    .find(|n| n.name.eq_ignore_ascii_case(t))
+                    .map(|n| n.id)
+            })
+            .collect();
         for &t in &targets {
-            let _ = c.execute("INSERT INTO refs(a,b,kind) VALUES(?1,?2,3)", params![id as i64, t as i64]);
+            let _ = c.execute(
+                "INSERT INTO refs(a,b,kind) VALUES(?1,?2,3)",
+                params![id as i64, t as i64],
+            );
         }
         targets
     }
@@ -325,13 +412,18 @@ impl Brain {
         let Ok(mut st) = c.prepare("SELECT rowid FROM nodes_fts WHERE nodes_fts MATCH ?1 ORDER BY bm25(nodes_fts, 5.0, 1.0, 2.0) LIMIT ?2") else {
             return vec![];
         };
-        st.query_map(params![q, limit as i64], |r| r.get::<_, i64>(0)).map(|it| it.filter_map(|x| x.ok()).map(|x| x as usize).collect()).unwrap_or_default()
+        st.query_map(params![q, limit as i64], |r| r.get::<_, i64>(0))
+            .map(|it| it.filter_map(|x| x.ok()).map(|x| x as usize).collect())
+            .unwrap_or_default()
     }
 
     fn bump_uses(&self, ids: &[usize]) {
         let c = self.conn.lock();
         for id in ids {
-            let _ = c.execute("UPDATE nodes SET uses=uses+1 WHERE id=?1", params![*id as i64]);
+            let _ = c.execute(
+                "UPDATE nodes SET uses=uses+1 WHERE id=?1",
+                params![*id as i64],
+            );
         }
     }
 
@@ -347,14 +439,23 @@ impl Brain {
         // Areas overview.
         out.push_str("## Areas\n");
         for (gi, name) in g.groups.iter().enumerate() {
-            let files: Vec<&str> =
-                g.nodes.iter().filter(|n| n.group == Some(gi) && n.kind == Kind::File).take(6).map(|n| n.path.as_deref().unwrap_or(&n.name)).collect();
+            let files: Vec<&str> = g
+                .nodes
+                .iter()
+                .filter(|n| n.group == Some(gi) && n.kind == Kind::File)
+                .take(6)
+                .map(|n| n.path.as_deref().unwrap_or(&n.name))
+                .collect();
             if !files.is_empty() {
                 out.push_str(&format!("- **{name}**: {}\n", files.join(", ")));
             }
         }
         let section = |out: &mut String, title: &str, kinds: &[Kind], only_pinned: bool| {
-            let items: Vec<&Node> = g.nodes.iter().filter(|n| kinds.contains(&n.kind) && (!only_pinned || n.pinned)).collect();
+            let items: Vec<&Node> = g
+                .nodes
+                .iter()
+                .filter(|n| kinds.contains(&n.kind) && (!only_pinned || n.pinned))
+                .collect();
             if items.is_empty() {
                 return;
             }
@@ -372,12 +473,20 @@ impl Brain {
         section(&mut out, "Decisions", &[Kind::Decision], true);
         section(&mut out, "Conventions", &[Kind::Convention], true);
         // Other pinned nodes.
-        let pinned_other: Vec<&Node> =
-            g.nodes.iter().filter(|n| n.pinned && !matches!(n.kind, Kind::Decision | Kind::Convention)).collect();
+        let pinned_other: Vec<&Node> = g
+            .nodes
+            .iter()
+            .filter(|n| n.pinned && !matches!(n.kind, Kind::Decision | Kind::Convention))
+            .collect();
         if !pinned_other.is_empty() {
             out.push_str("\n## Pinned\n");
             for n in pinned_other {
-                out.push_str(&format!("- {} ({}): {}\n", n.name, n.kind.label(), n.summary.replace('\n', " ")));
+                out.push_str(&format!(
+                    "- {} ({}): {}\n",
+                    n.name,
+                    n.kind.label(),
+                    n.summary.replace('\n', " ")
+                ));
             }
         }
         section(&mut out, "API", &[Kind::Api], false);
@@ -392,14 +501,24 @@ impl Brain {
                     break;
                 }
                 used.push(id);
-                out.push_str(&format!("### {} ({})\n{}\n", n.path.as_deref().unwrap_or(&n.name), n.kind.label(), n.summary));
+                out.push_str(&format!(
+                    "### {} ({})\n{}\n",
+                    n.path.as_deref().unwrap_or(&n.name),
+                    n.kind.label(),
+                    n.summary
+                ));
                 if !n.note.is_empty() {
                     out.push_str(&format!("Note: {}\n", n.note));
                 }
             }
             self.bump_uses(&used);
         }
-        let prs: Vec<&Node> = g.nodes.iter().filter(|n| n.kind == Kind::Pr).take(6).collect();
+        let prs: Vec<&Node> = g
+            .nodes
+            .iter()
+            .filter(|n| n.kind == Kind::Pr)
+            .take(6)
+            .collect();
         if !prs.is_empty() && out.len() < budget {
             out.push_str("\n## Recent merged work\n");
             for n in prs {
@@ -439,7 +558,10 @@ pub fn note_refs(note: &str) -> Vec<String> {
 
 /// Turn free text into a safe FTS5 OR-query of prefix terms.
 fn fts_query(text: &str) -> String {
-    const STOP: &[&str] = &["the", "and", "for", "with", "this", "that", "then", "fix", "make", "add", "run", "from", "into", "when", "what", "please"];
+    const STOP: &[&str] = &[
+        "the", "and", "for", "with", "this", "that", "then", "fix", "make", "add", "run", "from",
+        "into", "when", "what", "please",
+    ];
     let mut terms: Vec<String> = text
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .filter(|w| w.len() >= 3 && !STOP.contains(&w.to_lowercase().as_str()))
@@ -455,7 +577,13 @@ mod tests {
     use super::*;
     #[test]
     fn refs_and_query() {
-        assert_eq!(note_refs("see [[Auth]] and [[ push.ts ]]"), vec!["Auth", "push.ts"]);
-        assert_eq!(fts_query("Fix the Android permission layout"), "\"android\"* OR \"permission\"* OR \"layout\"*");
+        assert_eq!(
+            note_refs("see [[Auth]] and [[ push.ts ]]"),
+            vec!["Auth", "push.ts"]
+        );
+        assert_eq!(
+            fts_query("Fix the Android permission layout"),
+            "\"android\"* OR \"permission\"* OR \"layout\"*"
+        );
     }
 }

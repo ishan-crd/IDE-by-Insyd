@@ -43,7 +43,11 @@ impl Layout {
                 }
             })
             .collect::<Vec<_>>();
-        Self { vel: vec![(0., 0.); pos.len()], pos, edges: g.edges.clone() }
+        Self {
+            vel: vec![(0., 0.); pos.len()],
+            pos,
+            edges: g.edges.clone(),
+        }
     }
 
     /// Run `n` ticks with a cooling schedule (initial settle).
@@ -58,12 +62,16 @@ impl Layout {
         // Grid buckets for repulsion.
         let mut grid: HashMap<(i32, i32), Vec<usize>> = HashMap::with_capacity(n / 4 + 1);
         for (i, &(x, y)) in self.pos.iter().enumerate() {
-            grid.entry(((x / CUTOFF).floor() as i32, (y / CUTOFF).floor() as i32)).or_default().push(i);
+            grid.entry(((x / CUTOFF).floor() as i32, (y / CUTOFF).floor() as i32))
+                .or_default()
+                .push(i);
         }
         for (&(cx, cy), bucket) in &grid {
             for dx in -1..=1 {
                 for dy in -1..=1 {
-                    let Some(other) = grid.get(&(cx + dx, cy + dy)) else { continue };
+                    let Some(other) = grid.get(&(cx + dx, cy + dy)) else {
+                        continue;
+                    };
                     for &i in bucket {
                         for &j in other {
                             if j <= i {
@@ -127,6 +135,10 @@ impl Layout {
         for &(x, y) in &self.pos {
             b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
         }
-        if self.pos.is_empty() { (0., 0., 0., 0.) } else { b }
+        if self.pos.is_empty() {
+            (0., 0., 0., 0.)
+        } else {
+            b
+        }
     }
 }

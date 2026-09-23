@@ -4,8 +4,9 @@
 use crate::ui::{self, icon};
 use gpui::prelude::*;
 use gpui::{
-    App, Bounds, Context, Entity, EventEmitter, FontWeight, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, Pixels, Point, ScrollDelta,
-    ScrollWheelEvent, SharedString, Subscription, Window, canvas, div, fill, point, px, size,
+    Bounds, Context, Entity, EventEmitter, FontWeight, Hsla, MouseButton, MouseDownEvent,
+    MouseMoveEvent, Pixels, Point, ScrollDelta, ScrollWheelEvent, SharedString, Subscription,
+    Window, canvas, div, fill, point, px, size,
 };
 use gpui_component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use insyde_core::brain::layout::Layout;
@@ -104,26 +105,48 @@ pub struct BrainView {
 impl EventEmitter<BrainEvent> for BrainView {}
 
 impl BrainView {
-    pub fn new(handle: Arc<BrainHandle>, project: String, updated: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        handle: Arc<BrainHandle>,
+        project: String,
+        updated: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let (layout, nb, sel) = {
             let g = handle.graph.read();
             let mut l = Layout::new(&g);
             l.settle(if g.nodes.len() > 1500 { 120 } else { 260 });
-            let sel = g.nodes.iter().position(|n| n.kind == Kind::Module).unwrap_or(0);
+            let sel = g
+                .nodes
+                .iter()
+                .position(|n| n.kind == Kind::Module)
+                .unwrap_or(0);
             (l, g.neighbors(), sel)
         };
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search context"));
-        let note = cx.new(|cx| TextareaState::new(window, cx).auto_grow(6, 18).placeholder("Write a note. Link other nodes with [[Name]]."));
-        let subs = vec![cx.subscribe_in(&search, window, |this, s, ev: &InputEvent, _, cx| {
-            if matches!(ev, InputEvent::Change | InputEvent::PressEnter { .. }) {
-                let q = s.read(cx).value().to_string();
-                this.results = if q.trim().is_empty() { vec![] } else { this.handle.brain.search(&q, 30) };
-                if let (InputEvent::PressEnter { .. }, Some(&first)) = (ev, this.results.first()) {
-                    this.select(first, true, cx);
+        let note = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .auto_grow(6, 18)
+                .placeholder("Write a note. Link other nodes with [[Name]].")
+        });
+        let subs = vec![
+            cx.subscribe_in(&search, window, |this, s, ev: &InputEvent, _, cx| {
+                if matches!(ev, InputEvent::Change | InputEvent::PressEnter { .. }) {
+                    let q = s.read(cx).value().to_string();
+                    this.results = if q.trim().is_empty() {
+                        vec![]
+                    } else {
+                        this.handle.brain.search(&q, 30)
+                    };
+                    if let (InputEvent::PressEnter { .. }, Some(&first)) =
+                        (ev, this.results.first())
+                    {
+                        this.select(first, true, cx);
+                    }
+                    cx.notify();
                 }
-                cx.notify();
-            }
-        })];
+            }),
+        ];
         let mut open_groups = HashSet::new();
         open_groups.insert(0);
         Self {
@@ -153,8 +176,13 @@ impl BrainView {
     fn fit(&mut self) {
         let b = self.bounds.get();
         let (x0, y0, x1, y1) = self.layout.bounds();
-        let (w, h) = (f32::from(b.size.width).max(1.), f32::from(b.size.height).max(1.));
-        let z = (w / (x1 - x0 + 160.)).min(h / (y1 - y0 + 160.)).min(2.4).max(0.2);
+        let (w, h) = (
+            f32::from(b.size.width).max(1.),
+            f32::from(b.size.height).max(1.),
+        );
+        let z = (w / (x1 - x0 + 160.))
+            .min(h / (y1 - y0 + 160.))
+            .clamp(0.2, 2.4);
         self.zoom = z;
         self.pan = (-(x0 + x1) / 2. * z, -(y0 + y1) / 2. * z);
     }
@@ -168,10 +196,8 @@ impl BrainView {
 
     fn select(&mut self, id: usize, center: bool, cx: &mut Context<Self>) {
         self.sel = id;
-        if center {
-            if let Some(&(x, y)) = self.layout.pos.get(id) {
-                self.pan = (-x * self.zoom, -y * self.zoom);
-            }
+        if center && let Some(&(x, y)) = self.layout.pos.get(id) {
+            self.pan = (-x * self.zoom, -y * self.zoom);
         }
         if let Some(g) = self.handle.graph.read().nodes.get(id).and_then(|n| n.group) {
             self.open_groups.insert(g);
@@ -183,7 +209,10 @@ impl BrainView {
         let b = self.bounds.get();
         let cx = f32::from(b.origin.x) + f32::from(b.size.width) / 2.;
         let cy = f32::from(b.origin.y) + f32::from(b.size.height) / 2.;
-        ((f32::from(p.x) - cx - self.pan.0) / self.zoom, (f32::from(p.y) - cy - self.pan.1) / self.zoom)
+        (
+            (f32::from(p.x) - cx - self.pan.0) / self.zoom,
+            (f32::from(p.y) - cy - self.pan.1) / self.zoom,
+        )
     }
 
     fn hit(&self, p: Point<Pixels>) -> Option<usize> {
@@ -207,7 +236,12 @@ impl BrainView {
         if node.is_some() {
             self.alpha = 0.4;
         }
-        self.drag = Some(Drag { start: e.position, node, pan0: self.pan, moved: 0. });
+        self.drag = Some(Drag {
+            start: e.position,
+            node,
+            pan0: self.pan,
+            moved: 0.,
+        });
         cx.notify();
     }
 
@@ -239,10 +273,10 @@ impl BrainView {
     }
 
     fn on_up(&mut self, cx: &mut Context<Self>) {
-        if let Some(d) = self.drag.take() {
-            if let (Some(n), true) = (d.node, d.moved < 4.) {
-                self.select(n, false, cx);
-            }
+        if let Some(d) = self.drag.take()
+            && let (Some(n), true) = (d.node, d.moved < 4.)
+        {
+            self.select(n, false, cx);
         }
         cx.notify();
     }
@@ -282,7 +316,12 @@ impl BrainView {
         cx.notify();
     }
 
-    fn render_graph(&mut self, t: &Theme, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_graph(
+        &mut self,
+        t: &Theme,
+        window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         if self.alpha > 0.01 {
             let pinned = self.drag.as_ref().and_then(|d| d.node);
             self.layout.tick(self.alpha, pinned);
@@ -291,10 +330,18 @@ impl BrainView {
         }
         let g = self.handle.graph.read();
         let focus = self.hover.unwrap_or(self.sel);
-        let fset: HashSet<usize> = self.nb.get(focus).map(|v| v.iter().copied().collect()).unwrap_or_default();
+        let fset: HashSet<usize> = self
+            .nb
+            .get(focus)
+            .map(|v| v.iter().copied().collect())
+            .unwrap_or_default();
         let pos = self.layout.pos.clone();
         let kinds: Vec<Kind> = g.nodes.iter().map(|n| n.kind).collect();
-        let names: Vec<SharedString> = g.nodes.iter().map(|n| SharedString::from(n.name.clone())).collect();
+        let names: Vec<SharedString> = g
+            .nodes
+            .iter()
+            .map(|n| SharedString::from(n.name.clone()))
+            .collect();
         let edges: Vec<(usize, usize, EdgeKind)> = g.edges.clone();
         drop(g);
         let (zoom, pan, sel) = (self.zoom, self.pan, self.sel);
@@ -305,7 +352,10 @@ impl BrainView {
                 bounds_cell.set(b);
             },
             move |b, _, window, cx| {
-                let c = point(b.origin.x + b.size.width / 2. + px(pan.0), b.origin.y + b.size.height / 2. + px(pan.1));
+                let c = point(
+                    b.origin.x + b.size.width / 2. + px(pan.0),
+                    b.origin.y + b.size.height / 2. + px(pan.1),
+                );
                 let to = |(x, y): (f32, f32)| point(c.x + px(x * zoom), c.y + px(y * zoom));
                 window.with_content_mask(Some(gpui::ContentMask { bounds: b }), |window| {
                     // Edges: two batched paths (dim, highlighted).
@@ -322,15 +372,15 @@ impl BrainView {
                         pb.line_to(to(pos[bb]));
                         if on { n_hot += 1 } else { n_dim += 1 }
                     }
-                    if n_dim > 0 {
-                        if let Ok(p) = dim.build() {
-                            window.paint_path(p, t.ink_3.opacity(0.14));
-                        }
+                    if n_dim > 0
+                        && let Ok(p) = dim.build()
+                    {
+                        window.paint_path(p, t.ink_3.opacity(0.14));
                     }
-                    if n_hot > 0 {
-                        if let Ok(p) = hot.build() {
-                            window.paint_path(p, t.accent.opacity(0.9));
-                        }
+                    if n_hot > 0
+                        && let Ok(p) = hot.build()
+                    {
+                        window.paint_path(p, t.accent.opacity(0.9));
                     }
                     // Nodes.
                     for (i, &p) in pos.iter().enumerate() {
@@ -341,13 +391,29 @@ impl BrainView {
                             col = col.opacity(0.28);
                         }
                         let q = to(p);
-                        window.paint_quad(fill(Bounds::new(point(q.x - px(r), q.y - px(r)), size(px(2. * r), px(2. * r))), col).corner_radii(px(r)));
+                        window.paint_quad(
+                            fill(
+                                Bounds::new(
+                                    point(q.x - px(r), q.y - px(r)),
+                                    size(px(2. * r), px(2. * r)),
+                                ),
+                                col,
+                            )
+                            .corner_radii(px(r)),
+                        );
                         if i == sel {
                             let rr = r + 3.5;
                             window.paint_quad(
-                                gpui::outline(Bounds::new(point(q.x - px(rr), q.y - px(rr)), size(px(2. * rr), px(2. * rr))), t.accent, gpui::BorderStyle::Solid)
-                                    .corner_radii(px(rr))
-                                    .border_widths(px(2.)),
+                                gpui::outline(
+                                    Bounds::new(
+                                        point(q.x - px(rr), q.y - px(rr)),
+                                        size(px(2. * rr), px(2. * rr)),
+                                    ),
+                                    t.accent,
+                                    gpui::BorderStyle::Solid,
+                                )
+                                .corner_radii(px(rr))
+                                .border_widths(px(2.)),
                             );
                         }
                     }
@@ -365,14 +431,23 @@ impl BrainView {
                             f.weight = FontWeight::SEMIBOLD;
                         }
                         let color = if big { t.ink } else { t.ink_2 };
-                        let color = if in_f || !fset.is_empty() && big { color } else if fset.is_empty() { color } else { color.opacity(0.4) };
+                        let dimmed = !fset.is_empty() && !in_f && !big;
+                        let color = if dimmed { color.opacity(0.4) } else { color };
                         let text = names[i].clone();
-                        let run = gpui::TextRun { len: text.len(), font: f, color, background_color: None, underline: None, strikethrough: None };
+                        let run = gpui::TextRun {
+                            len: text.len(),
+                            font: f,
+                            color,
+                            background_color: None,
+                            underline: None,
+                            strikethrough: None,
+                        };
                         let line = window.text_system().shape_line(text, fs, &[run], None);
                         let q = to(p);
                         let r = radius(k) * zoom.max(0.6);
                         let origin = point(q.x - line.width / 2., q.y + px(r + 3.));
-                        let _ = line.paint(origin, px(14.), gpui::TextAlign::Left, None, window, cx);
+                        let _ =
+                            line.paint(origin, px(14.), gpui::TextAlign::Left, None, window, cx);
                     }
                 });
             },
@@ -382,9 +457,22 @@ impl BrainView {
 
     fn render_inspector(&mut self, t: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let g = self.handle.graph.read();
-        let Some(n) = g.nodes.get(self.sel).cloned() else { return div() };
-        let group = n.group.and_then(|gi| g.groups.get(gi).cloned()).unwrap_or_else(|| "root".into());
-        let links: Vec<(usize, String, Kind)> = self.nb.get(n.id).map(|v| v.iter().filter_map(|&i| g.nodes.get(i).map(|x| (i, x.name.clone(), x.kind))).collect()).unwrap_or_default();
+        let Some(n) = g.nodes.get(self.sel).cloned() else {
+            return div();
+        };
+        let group = n
+            .group
+            .and_then(|gi| g.groups.get(gi).cloned())
+            .unwrap_or_else(|| "root".into());
+        let links: Vec<(usize, String, Kind)> = self
+            .nb
+            .get(n.id)
+            .map(|v| {
+                v.iter()
+                    .filter_map(|&i| g.nodes.get(i).map(|x| (i, x.name.clone(), x.kind)))
+                    .collect()
+            })
+            .unwrap_or_default();
         let sha = g.sha.clone();
         drop(g);
         let mut linked = div().flex().flex_col().gap(px(1.));
@@ -405,7 +493,12 @@ impl BrainView {
                     .hover(move |s| s.bg(h))
                     .child(ui::dot(kind_color(k, t), 7.))
                     .child(ui::trunc(name).flex_1())
-                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(k.label()))
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child(k.label()),
+                    )
                     .on_click(cx.listener(move |this, _, _, cx| this.select(i, true, cx))),
             );
         }
@@ -414,7 +507,12 @@ impl BrainView {
                 .flex()
                 .flex_col()
                 .gap(px(4.))
-                .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(label.to_string()))
+                .child(
+                    div()
+                        .text_size(metrics::TEXT_XS)
+                        .text_color(t.ink_3)
+                        .child(label.to_string()),
+                )
                 .child(
                     div()
                         .flex()
@@ -432,7 +530,10 @@ impl BrainView {
                         .child(value),
                 )
         };
-        let changed = n.changed.map(insyde_core::git::ago).unwrap_or_else(|| "—".into());
+        let changed = n
+            .changed
+            .map(insyde_core::git::ago)
+            .unwrap_or_else(|| "—".into());
         div()
             .flex()
             .flex_col()
@@ -443,32 +544,53 @@ impl BrainView {
             .border_color(t.line)
             .overflow_hidden()
             .child(
-                div().px(px(14.)).pt(px(14.)).pb(px(12.)).border_b_1().border_color(t.line).child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(9.))
-                        .child(
-                            div()
-                                .size(px(26.))
-                                .rounded(px(5.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_size(px(10.))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(t.palette.white)
-                                .bg(if n.kind == Kind::Root { t.palette.slate } else { kind_color(n.kind, t) })
-                                .child(n.kind.chip()),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .child(ui::trunc(n.name.clone()).font_weight(FontWeight::SEMIBOLD).text_size(metrics::TEXT).text_color(t.ink))
-                                .child(div().mt(px(1.)).text_size(metrics::TEXT_XS).text_color(t.ink_3).child(format!("{} · {}", n.kind.label(), group))),
-                        ),
-                ),
+                div()
+                    .px(px(14.))
+                    .pt(px(14.))
+                    .pb(px(12.))
+                    .border_b_1()
+                    .border_color(t.line)
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(9.))
+                            .child(
+                                div()
+                                    .size(px(26.))
+                                    .rounded(px(5.))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .text_size(px(10.))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(t.palette.white)
+                                    .bg(if n.kind == Kind::Root {
+                                        t.palette.slate
+                                    } else {
+                                        kind_color(n.kind, t)
+                                    })
+                                    .child(n.kind.chip()),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(
+                                        ui::trunc(n.name.clone())
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_size(metrics::TEXT)
+                                            .text_color(t.ink),
+                                    )
+                                    .child(
+                                        div()
+                                            .mt(px(1.))
+                                            .text_size(metrics::TEXT_XS)
+                                            .text_color(t.ink_3)
+                                            .child(format!("{} · {}", n.kind.label(), group)),
+                                    ),
+                            ),
+                    ),
             )
             .child(
                 div()
@@ -483,7 +605,14 @@ impl BrainView {
                             .pb(px(14.))
                             .border_b_1()
                             .border_color(t.line)
-                            .child(div().text_size(metrics::TEXT_SM).font_weight(FontWeight::SEMIBOLD).mb(px(8.)).text_color(t.ink).child("Summary"))
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_SM)
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .mb(px(8.))
+                                    .text_color(t.ink)
+                                    .child("Summary"),
+                            )
                             .child(
                                 div()
                                     .px(px(10.))
@@ -497,7 +626,13 @@ impl BrainView {
                                     .child(n.summary.clone()),
                             )
                             .when(!n.note.is_empty(), |d| {
-                                d.child(div().mt(px(8.)).text_size(metrics::TEXT_XS).text_color(t.ink_3).child(format!("Note: {}", n.note)))
+                                d.child(
+                                    div()
+                                        .mt(px(8.))
+                                        .text_size(metrics::TEXT_XS)
+                                        .text_color(t.ink_3)
+                                        .child(format!("Note: {}", n.note)),
+                                )
                             }),
                     )
                     .child(
@@ -515,7 +650,14 @@ impl BrainView {
                                     .font_weight(FontWeight::SEMIBOLD)
                                     .text_color(t.ink)
                                     .child("Linked")
-                                    .child(div().ml_auto().font_weight(FontWeight::NORMAL).text_size(metrics::TEXT_XS).text_color(t.ink_3).child(links.len().to_string())),
+                                    .child(
+                                        div()
+                                            .ml_auto()
+                                            .font_weight(FontWeight::NORMAL)
+                                            .text_size(metrics::TEXT_XS)
+                                            .text_color(t.ink_3)
+                                            .child(links.len().to_string()),
+                                    ),
                             )
                             .child(linked),
                     )
@@ -524,16 +666,33 @@ impl BrainView {
                             .px(px(14.))
                             .pt(px(12.))
                             .pb(px(14.))
-                            .child(div().text_size(metrics::TEXT_SM).font_weight(FontWeight::SEMIBOLD).mb(px(8.)).text_color(t.ink).child("Details"))
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_SM)
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .mb(px(8.))
+                                    .text_color(t.ink)
+                                    .child("Details"),
+                            )
                             .child(
                                 div()
                                     .flex()
                                     .flex_wrap()
                                     .gap(px(8.))
                                     .child(field("Source", format!("main @ {sha}"), t).w(px(130.)))
-                                    .child(field("Size", format!("{:.1}k tokens", n.tokens as f32 / 1000.), t).w(px(130.)))
+                                    .child(
+                                        field(
+                                            "Size",
+                                            format!("{:.1}k tokens", n.tokens as f32 / 1000.),
+                                            t,
+                                        )
+                                        .w(px(130.)),
+                                    )
                                     .child(field("Last changed", changed, t).w(px(130.)))
-                                    .child(field("Used by agents", format!("{} times", n.uses), t).w(px(130.))),
+                                    .child(
+                                        field("Used by agents", format!("{} times", n.uses), t)
+                                            .w(px(130.)),
+                                    ),
                             ),
                     ),
             )
@@ -572,7 +731,12 @@ impl Render for BrainView {
         }
         let (n_nodes, n_edges, sha, groups) = {
             let g = self.handle.graph.read();
-            (g.nodes.len(), g.edges.len(), g.sha.clone(), g.groups.clone())
+            (
+                g.nodes.len(),
+                g.edges.len(),
+                g.sha.clone(),
+                g.groups.clone(),
+            )
         };
 
         // Header.
@@ -581,12 +745,15 @@ impl Render for BrainView {
             .items_center()
             .gap(px(8.))
             .h(metrics::TOPBAR_H)
-            .pl(px(16.))
+            .pl(px(84.))
             .pr(px(12.))
             .bg(t.panel)
             .border_b_1()
             .border_color(t.line)
-            .child(ui::icon_button("brain-back", "chevron-left", 14., &t).on_click(cx.listener(|_, _, _, cx| cx.emit(BrainEvent::Close))))
+            .child(
+                ui::icon_button("brain-back", "chevron-left", 14., &t)
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(BrainEvent::Close))),
+            )
             .child(
                 div()
                     .flex()
@@ -596,35 +763,74 @@ impl Render for BrainView {
                     .mr(px(4.))
                     .border_r_1()
                     .border_color(t.line)
-                    .child(div().text_size(metrics::TEXT_TITLE).font_weight(FontWeight::SEMIBOLD).text_color(t.ink).child("Project Brain"))
-                    .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(self.project.clone())),
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_TITLE)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t.ink)
+                            .child("Project Brain"),
+                    )
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_SM)
+                            .text_color(t.ink_3)
+                            .child(self.project.clone()),
+                    ),
             )
-            .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(format!("Built from main @ {sha} · {n_nodes} notes · {n_edges} links · {}", self.updated)))
-            .child(div().flex_1())
             .child(
                 div()
-                    .w(px(220.))
-                    .child(Input::new(&self.search).prefix(icon("search", 13., t.ink_faint)).h(px(30.))),
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child(format!(
+                        "Built from main @ {sha} · {n_nodes} notes · {n_edges} links · {}",
+                        self.updated
+                    )),
             )
-            .child(ui::segmented("brain-mode", &["Graph", "Notes"], if self.mode == Mode::Graph { 0 } else { 1 }, &t, false, 26., {
-                let e = cx.entity().downgrade();
-                move |i, _, cx| {
-                    let _ = e.update(cx, |this, cx| {
-                        this.mode = if i == 0 { Mode::Graph } else { Mode::Notes };
-                        cx.notify();
-                    });
-                }
-            }))
+            .child(div().flex_1())
+            .child(
+                div().w(px(220.)).child(
+                    Input::new(&self.search)
+                        .prefix(icon("search", 13., t.ink_faint))
+                        .h(px(30.)),
+                ),
+            )
+            .child(ui::segmented(
+                "brain-mode",
+                &["Graph", "Notes"],
+                if self.mode == Mode::Graph { 0 } else { 1 },
+                &t,
+                false,
+                26.,
+                {
+                    let e = cx.entity().downgrade();
+                    move |i, _, cx| {
+                        let _ = e.update(cx, |this, cx| {
+                            this.mode = if i == 0 { Mode::Graph } else { Mode::Notes };
+                            cx.notify();
+                        });
+                    }
+                },
+            ))
             .child(
                 ui::button("brain-update", &t)
                     .child(icon("refresh", 13., t.ink))
                     .child("Update")
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(BrainEvent::Update))),
             )
-            .child(ui::primary_button("brain-done", &t).child("Done").on_click(cx.listener(|_, _, _, cx| cx.emit(BrainEvent::Close))));
+            .child(
+                ui::primary_button("brain-done", &t)
+                    .child("Done")
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(BrainEvent::Close))),
+            );
 
         // Left: areas tree (or search results).
-        let mut tree = div().id("brain-tree").flex_1().min_h_0().overflow_y_scroll().px(px(8.)).pb(px(12.));
+        let mut tree = div()
+            .id("brain-tree")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .px(px(8.))
+            .pb(px(12.));
         {
             let g = self.handle.graph.read();
             if !self.results.is_empty() {
@@ -635,8 +841,14 @@ impl Render for BrainView {
                 }
             } else {
                 for (gi, name) in groups.iter().enumerate() {
-                    let items: Vec<(usize, Kind, String)> =
-                        g.nodes.iter().filter(|n| n.group == Some(gi) && !matches!(n.kind, Kind::Symbol | Kind::Module)).map(|n| (n.id, n.kind, n.name.clone())).collect();
+                    let items: Vec<(usize, Kind, String)> = g
+                        .nodes
+                        .iter()
+                        .filter(|n| {
+                            n.group == Some(gi) && !matches!(n.kind, Kind::Symbol | Kind::Module)
+                        })
+                        .map(|n| (n.id, n.kind, n.name.clone()))
+                        .collect();
                     let open = self.open_groups.contains(&gi);
                     let h = t.hover;
                     let mut block = div().mb(px(2.)).child(
@@ -651,10 +863,29 @@ impl Render for BrainView {
                             .rounded(metrics::RADIUS)
                             .cursor_pointer()
                             .hover(move |s| s.bg(h))
-                            .child(icon(if open { "chevron-down" } else { "chevron-right" }, 10., t.ink_4))
+                            .child(icon(
+                                if open {
+                                    "chevron-down"
+                                } else {
+                                    "chevron-right"
+                                },
+                                10.,
+                                t.ink_4,
+                            ))
                             .child(div().size(px(8.)).rounded(px(2.)).bg(t.palette.blue))
-                            .child(ui::trunc(name.clone()).flex_1().text_size(metrics::TEXT_SM).font_weight(FontWeight::MEDIUM).text_color(t.ink))
-                            .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(items.len().to_string()))
+                            .child(
+                                ui::trunc(name.clone())
+                                    .flex_1()
+                                    .text_size(metrics::TEXT_SM)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.ink),
+                            )
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_XS)
+                                    .text_color(t.ink_3)
+                                    .child(items.len().to_string()),
+                            )
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 if !this.open_groups.remove(&gi) {
                                     this.open_groups.insert(gi);
@@ -663,7 +894,13 @@ impl Render for BrainView {
                             })),
                     );
                     if open {
-                        let mut list = div().flex().flex_col().gap(px(1.)).pl(px(18.)).pt(px(1.)).pb(px(4.));
+                        let mut list = div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(1.))
+                            .pl(px(18.))
+                            .pt(px(1.))
+                            .pb(px(4.));
                         for (id, k, name) in items.into_iter().take(200) {
                             list = list.child(tree_item(id, k, &name, id == self.sel, &t, cx));
                         }
@@ -726,7 +963,16 @@ impl Render for BrainView {
                     .rounded(px(7.))
                     .shadow(t.pop_shadow(false));
                 for k in Kind::ALL {
-                    legend = legend.child(div().flex().items_center().gap(px(6.)).text_size(metrics::TEXT_XS).text_color(t.ink_2).child(ui::dot(kind_color(k, &t), 8.)).child(k.label()));
+                    legend = legend.child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.))
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_2)
+                            .child(ui::dot(kind_color(k, &t), 8.))
+                            .child(k.label()),
+                    );
                 }
                 let zoom_label = format!("{}%", (self.zoom * 100.).round());
                 div()
@@ -735,10 +981,19 @@ impl Render for BrainView {
                     .size_full()
                     .overflow_hidden()
                     .bg(t.ground)
-                    .cursor(if self.hover.is_some() { gpui::CursorStyle::PointingHand } else if self.drag.is_some() { gpui::CursorStyle::ClosedHand } else { gpui::CursorStyle::OpenHand })
+                    .cursor(if self.hover.is_some() {
+                        gpui::CursorStyle::PointingHand
+                    } else if self.drag.is_some() {
+                        gpui::CursorStyle::ClosedHand
+                    } else {
+                        gpui::CursorStyle::OpenHand
+                    })
                     .on_mouse_down(MouseButton::Left, cx.listener(Self::on_down))
                     .on_mouse_move(cx.listener(Self::on_move))
-                    .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| this.on_up(cx)))
+                    .on_mouse_up(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| this.on_up(cx)),
+                    )
                     .on_scroll_wheel(cx.listener(Self::on_wheel))
                     .child(self.render_graph(&t, window, cx))
                     .child(legend)
@@ -758,15 +1013,33 @@ impl Render for BrainView {
                             .rounded(px(7.))
                             .shadow(t.pop_shadow(false))
                             .occlude()
-                            .child(ui::icon_button("zoom-out", "minus", 12., &t).w(px(28.)).h(px(26.)).on_click(cx.listener(|this, _, _, cx| {
-                                this.zoom_by(0.8);
-                                cx.notify();
-                            })))
-                            .child(div().min_w(px(44.)).text_center().text_size(metrics::TEXT_XS).font_weight(FontWeight::MEDIUM).text_color(t.ink_2).child(zoom_label))
-                            .child(ui::icon_button("zoom-in", "plus", 12., &t).w(px(28.)).h(px(26.)).on_click(cx.listener(|this, _, _, cx| {
-                                this.zoom_by(1.25);
-                                cx.notify();
-                            })))
+                            .child(
+                                ui::icon_button("zoom-out", "minus", 12., &t)
+                                    .w(px(28.))
+                                    .h(px(26.))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.zoom_by(0.8);
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                div()
+                                    .min_w(px(44.))
+                                    .text_center()
+                                    .text_size(metrics::TEXT_XS)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.ink_2)
+                                    .child(zoom_label),
+                            )
+                            .child(
+                                ui::icon_button("zoom-in", "plus", 12., &t)
+                                    .w(px(28.))
+                                    .h(px(26.))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.zoom_by(1.25);
+                                        cx.notify();
+                                    })),
+                            )
                             .child(div().w(px(1.)).h(px(16.)).mx(px(4.)).bg(t.line))
                             .child(
                                 div()
@@ -787,18 +1060,36 @@ impl Render for BrainView {
                                     })),
                             ),
                     )
-                    .child(div().absolute().right(px(12.)).bottom(px(14.)).text_size(metrics::TEXT_XS).text_color(t.ink_faint).child("Drag to pan · scroll to zoom · click a node"))
+                    .child(
+                        div()
+                            .absolute()
+                            .right(px(12.))
+                            .bottom(px(14.))
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_faint)
+                            .child("Drag to pan · scroll to zoom · click a node"),
+                    )
                     .into_any_element()
             }
             Mode::Notes => {
                 if self.note_for != Some(self.sel) {
-                    let text = self.handle.graph.read().nodes.get(self.sel).map(|n| n.note.clone()).unwrap_or_default();
+                    let text = self
+                        .handle
+                        .graph
+                        .read()
+                        .nodes
+                        .get(self.sel)
+                        .map(|n| n.note.clone())
+                        .unwrap_or_default();
                     self.note.update(cx, |s, cx| s.set_value(text, window, cx));
                     self.note_for = Some(self.sel);
                 }
                 let (name, kind, summary) = {
                     let g = self.handle.graph.read();
-                    g.nodes.get(self.sel).map(|n| (n.name.clone(), n.kind, n.summary.clone())).unwrap_or((String::new(), Kind::Doc, String::new()))
+                    g.nodes
+                        .get(self.sel)
+                        .map(|n| (n.name.clone(), n.kind, n.summary.clone()))
+                        .unwrap_or((String::new(), Kind::Doc, String::new()))
                 };
                 div()
                     .id("notes")
@@ -849,12 +1140,25 @@ impl Render for BrainView {
                     .flex()
                     .child(div().w(px(248.)).flex_none().h_full().child(left))
                     .child(div().flex_1().min_w_0().h_full().child(center))
-                    .child(div().w(px(300.)).flex_none().h_full().child(self.render_inspector(&t, cx))),
+                    .child(
+                        div()
+                            .w(px(300.))
+                            .flex_none()
+                            .h_full()
+                            .child(self.render_inspector(&t, cx)),
+                    ),
             )
     }
 }
 
-fn tree_item(id: usize, k: Kind, name: &str, on: bool, t: &Theme, cx: &mut Context<BrainView>) -> impl IntoElement {
+fn tree_item(
+    id: usize,
+    k: Kind,
+    name: &str,
+    on: bool,
+    t: &Theme,
+    cx: &mut Context<BrainView>,
+) -> impl IntoElement {
     let h = t.hover;
     div()
         .id(SharedString::from(format!("ti-{id}")))
@@ -866,7 +1170,11 @@ fn tree_item(id: usize, k: Kind, name: &str, on: bool, t: &Theme, cx: &mut Conte
         .rounded(px(5.))
         .cursor_pointer()
         .text_size(metrics::TEXT_SM)
-        .bg(if on { t.sel_bg } else { gpui::transparent_black() })
+        .bg(if on {
+            t.sel_bg
+        } else {
+            gpui::transparent_black()
+        })
         .text_color(if on { t.ink } else { t.ink_2 })
         .hover(move |s| s.bg(h))
         .child(

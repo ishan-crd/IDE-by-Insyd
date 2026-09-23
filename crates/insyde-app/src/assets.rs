@@ -11,9 +11,34 @@ macro_rules! icons {
 }
 
 static ICONS: &[(&str, &[u8])] = icons![
-    "brain", "brain-links", "refresh", "play", "layout", "moon", "sun", "pr", "branch", "plus", "minus",
-    "chevron-down", "chevron-right", "chevron-left", "handoff", "history", "settings", "popout", "search",
-    "send", "stop", "check", "running", "cross", "close", "folder", "file", "trash",
+    "brain",
+    "brain-links",
+    "refresh",
+    "play",
+    "layout",
+    "moon",
+    "sun",
+    "pr",
+    "branch",
+    "plus",
+    "minus",
+    "chevron-down",
+    "chevron-right",
+    "chevron-left",
+    "handoff",
+    "history",
+    "settings",
+    "popout",
+    "search",
+    "send",
+    "stop",
+    "check",
+    "running",
+    "cross",
+    "close",
+    "folder",
+    "file",
+    "trash",
 ];
 
 pub struct Assets;
@@ -28,7 +53,11 @@ impl AssetSource for Assets {
     }
 
     fn list(&self, path: &str) -> anyhow::Result<Vec<SharedString>> {
-        Ok(ICONS.iter().filter(|(p, _)| p.starts_with(path)).map(|(p, _)| SharedString::from(*p)).collect())
+        Ok(ICONS
+            .iter()
+            .filter(|(p, _)| p.starts_with(path))
+            .map(|(p, _)| SharedString::from(*p))
+            .collect())
     }
 }
 

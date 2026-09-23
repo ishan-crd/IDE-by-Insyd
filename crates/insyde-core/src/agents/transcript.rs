@@ -67,15 +67,30 @@ pub struct PlanEntry {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Item {
-    User { text: String },
-    Agent { text: String },
-    Thought { text: String },
+    User {
+        text: String,
+    },
+    Agent {
+        text: String,
+    },
+    Thought {
+        text: String,
+    },
     /// A run of consecutive tool calls, rendered as one card.
-    Tools { calls: Vec<ToolItem> },
-    Plan { entries: Vec<PlanEntry> },
+    Tools {
+        calls: Vec<ToolItem>,
+    },
+    Plan {
+        entries: Vec<PlanEntry>,
+    },
     /// "Worked for 4m 12s" marker at the start of a turn's output.
-    Worked { secs: i64 },
-    Notice { text: String, error: bool },
+    Worked {
+        secs: i64,
+    },
+    Notice {
+        text: String,
+        error: bool,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -117,7 +132,11 @@ pub struct Transcript {
 impl Transcript {
     pub fn from_history(items: Vec<Item>) -> Self {
         let persisted = items.len();
-        Self { items, persisted, ..Default::default() }
+        Self {
+            items,
+            persisted,
+            ..Default::default()
+        }
     }
 
     pub fn touch(&mut self) {
@@ -126,8 +145,14 @@ impl Transcript {
 
     pub fn push_text(&mut self, thought: bool, chunk: &str) {
         match (self.items.last_mut(), thought) {
-            (Some(Item::Agent { text }), false) | (Some(Item::Thought { text }), true) => text.push_str(chunk),
-            _ => self.items.push(if thought { Item::Thought { text: chunk.into() } } else { Item::Agent { text: chunk.into() } }),
+            (Some(Item::Agent { text }), false) | (Some(Item::Thought { text }), true) => {
+                text.push_str(chunk)
+            }
+            _ => self.items.push(if thought {
+                Item::Thought { text: chunk.into() }
+            } else {
+                Item::Agent { text: chunk.into() }
+            }),
         }
         self.touch();
     }
@@ -155,8 +180,14 @@ impl Transcript {
             .items
             .iter()
             .map(|i| match i {
-                Item::User { text } | Item::Agent { text } | Item::Thought { text } | Item::Notice { text, .. } => text.len(),
-                Item::Tools { calls } => calls.iter().map(|c| c.title.len() + c.arg.len() + 200).sum(),
+                Item::User { text }
+                | Item::Agent { text }
+                | Item::Thought { text }
+                | Item::Notice { text, .. } => text.len(),
+                Item::Tools { calls } => calls
+                    .iter()
+                    .map(|c| c.title.len() + c.arg.len() + 200)
+                    .sum(),
                 Item::Plan { entries } => entries.iter().map(|e| e.text.len()).sum(),
                 Item::Worked { .. } => 0,
             })
@@ -170,7 +201,9 @@ impl Transcript {
         let (mut a, mut r) = (0, 0);
         for it in &self.items {
             if let Item::Tools { calls } = it {
-                for c in calls.iter().filter(|c| matches!(c.kind, ToolKind::Edit | ToolKind::Delete | ToolKind::Move)) {
+                for c in calls.iter().filter(|c| {
+                    matches!(c.kind, ToolKind::Edit | ToolKind::Delete | ToolKind::Move)
+                }) {
                     a += c.added;
                     r += c.removed;
                     for p in &c.paths {
@@ -190,7 +223,13 @@ impl Transcript {
             .iter()
             .rev()
             .find_map(|i| match i {
-                Item::Plan { entries } => Some(entries.iter().filter(|e| !e.done).map(|e| e.text.clone()).collect()),
+                Item::Plan { entries } => Some(
+                    entries
+                        .iter()
+                        .filter(|e| !e.done)
+                        .map(|e| e.text.clone())
+                        .collect(),
+                ),
                 _ => None,
             })
             .unwrap_or_default()
@@ -211,7 +250,11 @@ impl Transcript {
                 }
                 Item::Plan { entries } => {
                     for e in entries {
-                        out.push_str(&format!("- [{}] {}\n", if e.done { "x" } else { " " }, e.text));
+                        out.push_str(&format!(
+                            "- [{}] {}\n",
+                            if e.done { "x" } else { " " },
+                            e.text
+                        ));
                     }
                 }
                 _ => {}

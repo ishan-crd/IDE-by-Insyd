@@ -4,14 +4,19 @@
 
 use gpui::prelude::*;
 use gpui::{
-    Animation, AnimationExt, AnyElement, App, Div, ElementId, FontWeight, Hsla, Pixels, SharedString, Stateful, Svg, div, px, svg,
+    Animation, AnimationExt, AnyElement, App, Div, ElementId, FontWeight, Hsla, SharedString,
+    Stateful, Svg, div, px, svg,
 };
 use insyde_core::agents::{AgentSpec, Tint};
 use insyde_theme::{Theme, metrics};
 use std::time::Duration;
 
 pub fn icon(name: &str, size: f32, color: Hsla) -> Svg {
-    svg().path(SharedString::from(format!("icons/{name}.svg"))).size(px(size)).flex_none().text_color(color)
+    svg()
+        .path(SharedString::from(format!("icons/{name}.svg")))
+        .size(px(size))
+        .flex_none()
+        .text_color(color)
 }
 
 /// Outlined 30px control (`background:var(--panel);border:1px solid var(--field-border)`).
@@ -36,8 +41,16 @@ pub fn button(id: impl Into<ElementId>, t: &Theme) -> Stateful<Div> {
 }
 
 /// Smaller outlined control (26/28px) used in panels.
-pub fn small_button(id: impl Into<ElementId>, label: impl Into<SharedString>, t: &Theme) -> Stateful<Div> {
-    button(id, t).h(px(26.)).px(px(10.)).text_size(metrics::TEXT_SM).child(label.into())
+pub fn small_button(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    t: &Theme,
+) -> Stateful<Div> {
+    button(id, t)
+        .h(px(26.))
+        .px(px(10.))
+        .text_size(metrics::TEXT_SM)
+        .child(label.into())
 }
 
 pub fn primary_button(id: impl Into<ElementId>, t: &Theme) -> Stateful<Div> {
@@ -89,7 +102,12 @@ pub fn segmented(
     on: impl Fn(usize, &mut gpui::Window, &mut App) + 'static,
 ) -> Div {
     let on = std::rc::Rc::new(on);
-    let mut row = div().flex().gap(px(2.)).p(px(2.)).bg(t.hover_2).rounded(px(7.));
+    let mut row = div()
+        .flex()
+        .gap(px(2.))
+        .p(px(2.))
+        .bg(t.hover_2)
+        .rounded(px(7.));
     for (i, label) in items.iter().enumerate() {
         let on = on.clone();
         let is = i == active;
@@ -109,7 +127,11 @@ pub fn segmented(
         if grow {
             b = b.flex_1();
         }
-        b = if is { b.bg(t.seg_active).text_color(t.ink).shadow(t.seg_shadow()) } else { b.text_color(t.ink_3) };
+        b = if is {
+            b.bg(t.seg_active).text_color(t.ink).shadow(t.seg_shadow())
+        } else {
+            b.text_color(t.ink_3)
+        };
         row = row.child(b);
     }
     row
@@ -167,10 +189,14 @@ pub fn dot(color: Hsla, size: f32) -> Div {
 
 /// The design's `pulse` keyframes (opacity 1 → .35 → 1 over 1.4s).
 pub fn pulse(id: impl Into<ElementId>, el: Div) -> AnyElement {
-    el.with_animation(id, Animation::new(Duration::from_millis(1400)).repeat(), |el, d| {
-        let x = (d * std::f32::consts::TAU).cos() * 0.5 + 0.5; // 1 → 0 → 1
-        el.opacity(0.35 + 0.65 * x)
-    })
+    el.with_animation(
+        id,
+        Animation::new(Duration::from_millis(1400)).repeat(),
+        |el, d| {
+            let x = (d * std::f32::consts::TAU).cos() * 0.5 + 0.5; // 1 → 0 → 1
+            el.opacity(0.35 + 0.65 * x)
+        },
+    )
     .into_any_element()
 }
 
@@ -183,12 +209,26 @@ pub fn switch(on: bool, t: &Theme) -> Div {
         .flex_none()
         .rounded(px(16.))
         .bg(if on { t.accent } else { t.field_border })
-        .child(div().absolute().top(px(2.)).left(px(if on { 14. } else { 2. })).size(px(12.)).rounded_full().bg(t.palette.white))
+        .child(
+            div()
+                .absolute()
+                .top(px(2.))
+                .left(px(if on { 14. } else { 2. }))
+                .size(px(12.))
+                .rounded_full()
+                .bg(t.palette.white),
+        )
 }
 
 /// Small check box used in the hand-off popover.
 pub fn checkbox(on: bool, t: &Theme) -> Div {
-    let mut d = div().size(px(16.)).flex_none().rounded(px(4.)).flex().items_center().justify_center();
+    let mut d = div()
+        .size(px(16.))
+        .flex_none()
+        .rounded(px(4.))
+        .flex()
+        .items_center()
+        .justify_center();
     if on {
         d = d.bg(t.accent).child(icon("check", 10., t.palette.white));
     } else {
@@ -198,20 +238,28 @@ pub fn checkbox(on: bool, t: &Theme) -> Div {
 }
 
 pub fn mono_text(t: &Theme) -> Div {
-    div().font_family(metrics::MONO_FONT).text_size(metrics::TEXT_MONO).text_color(t.ink_2)
-}
-
-pub fn label(text: impl Into<SharedString>, size: Pixels, color: Hsla) -> Div {
-    div().text_size(size).text_color(color).child(text.into())
+    div()
+        .font_family(metrics::MONO_FONT)
+        .text_size(metrics::TEXT_MONO)
+        .text_color(t.ink_2)
 }
 
 /// Single-line text that ellipsizes.
 pub fn trunc(text: impl Into<SharedString>) -> Div {
-    div().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().child(text.into())
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis()
+        .child(text.into())
 }
 
 pub fn fmt_tokens(n: u64) -> String {
-    if n >= 1000 { format!("{}k", (n as f64 / 1000.).round() as u64) } else { n.to_string() }
+    if n >= 1000 {
+        format!("{}k", (n as f64 / 1000.).round() as u64)
+    } else {
+        n.to_string()
+    }
 }
 
 pub fn fmt_k(n: f64) -> String {

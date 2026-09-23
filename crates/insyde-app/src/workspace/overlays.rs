@@ -4,13 +4,22 @@
 use super::{Drag, Workspace};
 use crate::ui::{self, icon, monogram};
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, FontWeight, MouseButton, SharedString, Stateful, Div, Window, div, px};
+use gpui::{
+    AnyElement, Context, Div, FontWeight, MouseButton, SharedString, Stateful, Window, div, px,
+};
 use insyde_core::agents::{AGENTS, AgentSpec};
 use insyde_theme::{Theme, metrics};
 
 impl Workspace {
     /// Vertical resize handle at `left` (or `right`) px inside the middle row.
-    pub(super) fn handle_v(&mut self, which: &'static str, left: f32, right: Option<f32>, t: &Theme, cx: &mut Context<Self>) -> Stateful<Div> {
+    pub(super) fn handle_v(
+        &mut self,
+        which: &'static str,
+        left: f32,
+        right: Option<f32>,
+        t: &Theme,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         let accent = t.accent;
         let dragging = self.is_dragging(which);
         let mut d = div()
@@ -20,18 +29,35 @@ impl Workspace {
             .bottom_0()
             .w(px(5.))
             .cursor_col_resize()
-            .bg(if dragging { t.accent } else { gpui::transparent_black() })
+            .bg(if dragging {
+                t.accent
+            } else {
+                gpui::transparent_black()
+            })
             .hover(move |s| s.bg(accent))
-            .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &gpui::MouseDownEvent, _, cx| {
-                if e.click_count == 2 {
-                    this.reset_sizes(cx);
-                    return;
-                }
-                let x0 = f32::from(e.position.x);
-                let d = if which == "side" { Drag::Side { x0, w0: this.prefs.side_w } } else { Drag::Right { x0, w0: this.prefs.right_w } };
-                this.start_drag(d);
-                cx.notify();
-            }));
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, e: &gpui::MouseDownEvent, _, cx| {
+                    if e.click_count == 2 {
+                        this.reset_sizes(cx);
+                        return;
+                    }
+                    let x0 = f32::from(e.position.x);
+                    let d = if which == "side" {
+                        Drag::Side {
+                            x0,
+                            w0: this.prefs.side_w,
+                        }
+                    } else {
+                        Drag::Right {
+                            x0,
+                            w0: this.prefs.right_w,
+                        }
+                    };
+                    this.start_drag(d);
+                    cx.notify();
+                }),
+            );
         d = match right {
             Some(r) => d.right(px(r)),
             None => d.left(px(left)),
@@ -39,7 +65,13 @@ impl Workspace {
         d
     }
 
-    pub(super) fn render_overlays(&mut self, mut root: Stateful<Div>, t: &Theme, _w: &mut Window, cx: &mut Context<Self>) -> Stateful<Div> {
+    pub(super) fn render_overlays(
+        &mut self,
+        mut root: Stateful<Div>,
+        t: &Theme,
+        _w: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         let side_w = self.sizes().0;
         let tabs_w = self.wt().map(|w| w.tabs.len()).unwrap_or(1) as f32;
         let top = f32::from(metrics::TOPBAR_H) + f32::from(metrics::TAB_H) - 2.;
@@ -57,10 +89,22 @@ impl Workspace {
                 .rounded(metrics::RADIUS_LG)
                 .shadow(t.pop_shadow(true))
                 .occlude()
-                .child(div().px(px(8.)).pt(px(6.)).pb(px(4.)).text_size(metrics::TEXT_XS).text_color(t.ink_3).child(format!("Add to {branch}")));
+                .child(
+                    div()
+                        .px(px(8.))
+                        .pt(px(6.))
+                        .pb(px(4.))
+                        .text_size(metrics::TEXT_XS)
+                        .text_color(t.ink_3)
+                        .child(format!("Add to {branch}")),
+                );
             for (i, spec) in AGENTS.iter().enumerate() {
                 let hover = t.hover;
-                let key = if spec.is_tool() { String::new() } else { (i + 1).to_string() };
+                let key = if spec.is_tool() {
+                    String::new()
+                } else {
+                    (i + 1).to_string()
+                };
                 let installed = spec.is_tool()
                     || spec.acp.map(|c| AgentSpec::available(&c)).unwrap_or(false)
                     || spec.tui.map(|c| AgentSpec::available(&c)).unwrap_or(false);
@@ -84,13 +128,36 @@ impl Workspace {
                         .px(px(8.))
                         .rounded(metrics::RADIUS)
                         .cursor_pointer()
-                        .bg(if i == 2 { t.hover_2 } else { gpui::transparent_black() })
+                        .bg(if i == 2 {
+                            t.hover_2
+                        } else {
+                            gpui::transparent_black()
+                        })
                         .hover(move |s| s.bg(hover))
-                        .child(div().w(px(12.)).text_right().text_size(metrics::TEXT_XS).text_color(t.ink_faint).child(key))
+                        .child(
+                            div()
+                                .w(px(12.))
+                                .text_right()
+                                .text_size(metrics::TEXT_XS)
+                                .text_color(t.ink_faint)
+                                .child(key),
+                        )
                         .child(monogram(spec, 20., t))
-                        .child(div().flex_1().text_color(if installed { t.ink } else { t.ink_3 }).child(spec.name))
-                        .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(hint))
-                        .on_click(cx.listener(move |this, e: &gpui::ClickEvent, w, cx| this.add_agent(i, e.modifiers().platform, w, cx))),
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_color(if installed { t.ink } else { t.ink_3 })
+                                .child(spec.name),
+                        )
+                        .child(
+                            div()
+                                .text_size(metrics::TEXT_XS)
+                                .text_color(t.ink_3)
+                                .child(hint),
+                        )
+                        .on_click(cx.listener(move |this, e: &gpui::ClickEvent, w, cx| {
+                            this.add_agent(i, e.modifiers().platform, w, cx)
+                        })),
                 );
             }
             menu = menu.child(
@@ -108,15 +175,21 @@ impl Workspace {
                     .child("Hold ⌘ for terminal UI")
                     .child(div().ml_auto().child("1–9 to pick")),
             );
-            root = root.child(scrim("menu-scrim", cx, |this| this.menu_open = false)).child(menu);
+            root = root
+                .child(scrim("menu-scrim", cx, |this| this.menu_open = false))
+                .child(menu);
         }
 
         if self.handoff.is_some() {
-            root = root.child(scrim("ho-scrim", cx, |this| this.handoff = None)).child(self.render_handoff(t, top, cx));
+            root = root
+                .child(scrim("ho-scrim", cx, |this| this.handoff = None))
+                .child(self.render_handoff(t, top, cx));
         }
 
         if self.history_open {
-            root = root.child(scrim("hist-scrim", cx, |this| this.history_open = false)).child(self.render_history(t, top, cx));
+            root = root
+                .child(scrim("hist-scrim", cx, |this| this.history_open = false))
+                .child(self.render_history(t, top, cx));
         }
 
         if let Some(bv) = &self.brain_view {
@@ -146,7 +219,9 @@ impl Workspace {
     }
 
     fn render_handoff(&mut self, t: &Theme, top: f32, cx: &mut Context<Self>) -> AnyElement {
-        let Some(h) = &self.handoff else { return div().into_any_element() };
+        let Some(h) = &self.handoff else {
+            return div().into_any_element();
+        };
         let branch = self.active_branch();
         let mut grid = div().flex().flex_wrap().gap(px(4.));
         for (i, spec) in AGENTS.iter().enumerate().take(9) {
@@ -164,7 +239,11 @@ impl Workspace {
                     .rounded(metrics::RADIUS)
                     .cursor_pointer()
                     .text_size(metrics::TEXT_SM)
-                    .bg(if on { t.sel_bg } else { gpui::transparent_black() })
+                    .bg(if on {
+                        t.sel_bg
+                    } else {
+                        gpui::transparent_black()
+                    })
                     .border_1()
                     .border_color(if on { t.sel_chip } else { t.line_soft })
                     .hover(move |s| s.bg(hover))
@@ -172,19 +251,25 @@ impl Workspace {
                     .child(monogram(spec, 18., t))
                     .child(ui::trunc(spec.name))
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(h) = &mut this.handoff {
-                            if AGENTS[i].acp.is_some() {
-                                h.target = i;
-                            }
+                        if let Some(h) = &mut this.handoff
+                            && AGENTS[i].acp.is_some()
+                        {
+                            h.target = i;
                         }
                         cx.notify();
                     })),
             );
         }
-        let labels = ["Conversation summary", "Changed files & diff", "Terminal & test state", "Open tasks", "Project Brain"];
+        let labels = [
+            "Conversation summary",
+            "Changed files & diff",
+            "Terminal & test state",
+            "Open tasks",
+            "Project Brain",
+        ];
         let mut opts = div().flex().flex_col();
         let mut total = 0.;
-        for i in 0..5 {
+        for (i, label) in labels.iter().enumerate() {
             let on = h.opts[i];
             if on {
                 total += h.tokens[i];
@@ -207,15 +292,29 @@ impl Workspace {
                         div()
                             .flex_1()
                             .min_w_0()
-                            .child(div().text_size(metrics::TEXT_SM).font_weight(FontWeight::MEDIUM).child(labels[i]))
-                            .child(ui::trunc(h.subs[i].clone()).text_size(metrics::TEXT_XS).text_color(t.ink_3)),
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_SM)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(*label),
+                            )
+                            .child(
+                                ui::trunc(h.subs[i].clone())
+                                    .text_size(metrics::TEXT_XS)
+                                    .text_color(t.ink_3),
+                            ),
                     )
-                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(ui::fmt_k(h.tokens[i])))
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child(ui::fmt_k(h.tokens[i])),
+                    )
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(h) = &mut this.handoff {
-                            if h.tokens[i] > 0. {
-                                h.opts[i] = !h.opts[i];
-                            }
+                        if let Some(h) = &mut this.handoff
+                            && h.tokens[i] > 0.
+                        {
+                            h.opts[i] = !h.opts[i];
                         }
                         cx.notify();
                     })),
@@ -268,14 +367,34 @@ impl Workspace {
 
     fn render_history(&mut self, t: &Theme, top: f32, cx: &mut Context<Self>) -> AnyElement {
         let path = self.active_wt_path();
-        let rows = path.as_ref().map(|p| self.store.recent_sessions(p, 30)).unwrap_or_default();
+        let rows = path
+            .as_ref()
+            .map(|p| self.store.recent_sessions(p, 30))
+            .unwrap_or_default();
         let open: Vec<i64> = self
             .wt()
-            .map(|ws| ws.tabs.iter().filter_map(|t| if let super::TabView::Chat(c) = &t.view { c.read(cx).session_row() } else { None }).collect())
+            .map(|ws| {
+                ws.tabs
+                    .iter()
+                    .filter_map(|t| {
+                        if let super::TabView::Chat(c) = &t.view {
+                            c.read(cx).session_row()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
         let mut list = div().flex().flex_col().gap(px(1.));
         if rows.is_empty() {
-            list = list.child(div().p(px(10.)).text_size(metrics::TEXT_SM).text_color(t.ink_3).child("No sessions in this worktree yet."));
+            list = list.child(
+                div()
+                    .p(px(10.))
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child("No sessions in this worktree yet."),
+            );
         }
         for r in rows {
             let is_open = open.contains(&r.id);
@@ -293,8 +412,18 @@ impl Workspace {
                     .cursor_pointer()
                     .hover(move |s| s.bg(hover))
                     .child(monogram(spec, 18., t))
-                    .child(ui::trunc(r.title.clone()).flex_1().text_size(metrics::TEXT_SM))
-                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(if is_open { "open".to_string() } else { format!("${:.2}", r.cost) }))
+                    .child(
+                        ui::trunc(r.title.clone())
+                            .flex_1()
+                            .text_size(metrics::TEXT_SM),
+                    )
+                    .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(
+                        if is_open {
+                            "open".to_string()
+                        } else {
+                            format!("${:.2}", r.cost)
+                        },
+                    ))
                     .on_click(cx.listener(move |this, _, w, cx| {
                         this.history_open = false;
                         if !is_open {
@@ -318,19 +447,50 @@ impl Workspace {
             .rounded(metrics::RADIUS_LG)
             .shadow(t.pop_shadow(true))
             .occlude()
-            .child(div().px(px(8.)).pt(px(6.)).pb(px(4.)).text_size(metrics::TEXT_XS).text_color(t.ink_3).child("Session history"))
-            .child(div().id("hist-list").max_h(px(380.)).overflow_y_scroll().child(list))
+            .child(
+                div()
+                    .px(px(8.))
+                    .pt(px(6.))
+                    .pb(px(4.))
+                    .text_size(metrics::TEXT_XS)
+                    .text_color(t.ink_3)
+                    .child("Session history"),
+            )
+            .child(
+                div()
+                    .id("hist-list")
+                    .max_h(px(380.))
+                    .overflow_y_scroll()
+                    .child(list),
+            )
             .into_any_element()
     }
 
     pub(super) fn render_status(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let branch = self.active_branch();
         let ab = self.active_wt_path().and_then(|p| self.ab_cache(&p));
-        let pr = self.wt().and_then(|w| w.pr.as_ref()).map(|p| format!("PR #{} {}", p.number, if p.draft { "draft" } else { "open" })).unwrap_or_else(|| "No PR".into());
+        let pr = self
+            .wt()
+            .and_then(|w| w.pr.as_ref())
+            .map(|p| {
+                format!(
+                    "PR #{} {}",
+                    p.number,
+                    if p.draft { "draft" } else { "open" }
+                )
+            })
+            .unwrap_or_else(|| "No PR".into());
         let (running, _) = self.counts(cx);
         let detached = cx.windows().len().saturating_sub(1);
-        let lang = self.wt().and_then(|w| w.viewer.as_ref()).map(|(p, _)| p.rsplit('.').next().unwrap_or("").to_uppercase()).filter(|s| !s.is_empty() && s.len() < 6);
-        let stack = self.project().map(|p| p.project.stack.clone()).unwrap_or_default();
+        let lang = self
+            .wt()
+            .and_then(|w| w.viewer.as_ref())
+            .map(|(p, _)| p.rsplit('.').next().unwrap_or("").to_uppercase())
+            .filter(|s| !s.is_empty() && s.len() < 6);
+        let stack = self
+            .project()
+            .map(|p| p.project.stack.clone())
+            .unwrap_or_default();
         div()
             .flex()
             .flex_none()
@@ -343,12 +503,26 @@ impl Workspace {
             .border_color(t.line)
             .text_size(metrics::TEXT_XS)
             .text_color(t.ink_3)
-            .child(div().text_color(t.ink_2).font_weight(FontWeight::MEDIUM).child(branch))
-            .child(ab.map(|(a, b)| format!("↑{a} ↓{b}")).unwrap_or_else(|| "no upstream".into()))
+            .child(
+                div()
+                    .text_color(t.ink_2)
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(branch),
+            )
+            .child(
+                ab.map(|(a, b)| format!("↑{a} ↓{b}"))
+                    .unwrap_or_else(|| "no upstream".into()),
+            )
             .child(pr)
             .child(format!("Agents: {running} running"))
-            .child(div().ml_auto().child(format!("{}×{}", self.window_size.0 as i32, self.window_size.1 as i32)))
-            .child(format!("{detached} window{} detached", if detached == 1 { "" } else { "s" }))
+            .child(div().ml_auto().child(format!(
+                "{}×{}",
+                self.window_size.0 as i32, self.window_size.1 as i32
+            )))
+            .child(format!(
+                "{detached} window{} detached",
+                if detached == 1 { "" } else { "s" }
+            ))
             .child(format!("UTF-8 · {}", lang.unwrap_or(stack)))
             .into_any_element()
     }
@@ -373,9 +547,17 @@ impl Workspace {
 }
 
 /// Full-window click-catcher that closes a popover.
-fn scrim(id: &'static str, cx: &mut Context<Workspace>, close: impl Fn(&mut Workspace) + 'static) -> Stateful<Div> {
-    div().id(id).absolute().inset_0().on_click(cx.listener(move |this, _, _, cx| {
-        close(this);
-        cx.notify();
-    }))
+fn scrim(
+    id: &'static str,
+    cx: &mut Context<Workspace>,
+    close: impl Fn(&mut Workspace) + 'static,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .absolute()
+        .inset_0()
+        .on_click(cx.listener(move |this, _, _, cx| {
+            close(this);
+            cx.notify();
+        }))
 }

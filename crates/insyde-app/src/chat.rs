@@ -8,10 +8,10 @@ use crate::brain_view::BrainHandle;
 use crate::ui::{self, fmt_tokens, icon, monogram};
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight, ListAlignment, ListState, SharedString, Subscription,
-    Window, div, list, px,
+    AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
+    ListAlignment, ListState, SharedString, Subscription, Window, div, list, px,
 };
-use gpui_component::input::{InputEvent, TextareaState, Textarea};
+use gpui_component::input::{InputEvent, Textarea, TextareaState};
 use gpui_component::text::TextView;
 use insyde_core::agents::acp::{AcpSession, Block, Policy};
 use insyde_core::agents::transcript::{Item, ToolStatus, Transcript};
@@ -110,11 +110,13 @@ impl ChatView {
                 .placeholder("Ask for changes, send follow-ups, or paste an error…")
         });
         let mut subs = vec![];
-        subs.push(cx.subscribe_in(&composer, window, |this, _, ev: &InputEvent, window, cx| {
-            if let InputEvent::PressEnter { shift: false, .. } = ev {
-                this.send(window, cx);
-            }
-        }));
+        subs.push(
+            cx.subscribe_in(&composer, window, |this, _, ev: &InputEvent, window, cx| {
+                if let InputEvent::PressEnter { shift: false, .. } = ev {
+                    this.send(window, cx);
+                }
+            }),
+        );
         let list = ListState::new(0, ListAlignment::Bottom, px(600.));
         list.set_follow_mode(gpui::FollowMode::Tail);
 
@@ -124,10 +126,17 @@ impl ChatView {
         });
         let session_row = match &init.resume {
             Some(r) => Some(r.id),
-            None if spec.acp.is_some() => init.store.create_session(&init.worktree, spec.key, &init.title).ok(),
+            None if spec.acp.is_some() => init
+                .store
+                .create_session(&init.worktree, spec.key, &init.title)
+                .ok(),
             None => None,
         };
-        let history: Vec<Item> = init.resume.as_ref().map(|r| init.store.events(r.id)).unwrap_or_default();
+        let history: Vec<Item> = init
+            .resume
+            .as_ref()
+            .map(|r| init.store.events(r.id))
+            .unwrap_or_default();
         let acp_id = init.resume.as_ref().and_then(|r| r.acp_id.clone());
         let transcript = Arc::new(parking_lot::Mutex::new(Transcript::from_history(history)));
         cx.spawn(async move |this, cx| {
@@ -221,7 +230,9 @@ impl ChatView {
     fn start_ticker(&mut self, cx: &mut Context<Self>) {
         cx.spawn(async move |this, cx| {
             loop {
-                cx.background_executor().timer(std::time::Duration::from_secs(1)).await;
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs(1))
+                    .await;
                 let running = this.update(cx, |this, cx| {
                     cx.notify();
                     this.is_running()
@@ -239,7 +250,9 @@ impl ChatView {
         if self.session.is_some() {
             return true;
         }
-        let Some(cmd) = AgentSpec::get(self.agent).acp else { return false };
+        let Some(cmd) = AgentSpec::get(self.agent).acp else {
+            return false;
+        };
         let persist = self.session_row.map(|id| (self.store.clone(), id));
         self.session = Some(AcpSession::start(
             cmd,
@@ -268,12 +281,19 @@ impl ChatView {
     /// (used, size) tokens of the context window.
     pub fn context_usage(&self) -> (u64, u64) {
         let t = self.transcript.lock();
-        let used = if t.usage.used > 0 { t.usage.used } else { t.estimate_tokens() };
-        (used, if t.usage.size > 0 { t.usage.size } else { 200_000 })
-    }
-
-    pub fn cost(&self) -> f64 {
-        self.transcript.lock().usage.cost
+        let used = if t.usage.used > 0 {
+            t.usage.used
+        } else {
+            t.estimate_tokens()
+        };
+        (
+            used,
+            if t.usage.size > 0 {
+                t.usage.size
+            } else {
+                200_000
+            },
+        )
     }
 
     /// Everything a hand-off can carry: (summary, open tasks, edited paths, +, −).
@@ -292,28 +312,37 @@ impl ChatView {
         let mut blocks = Vec::new();
         if !self.sent_first {
             if let Some(c) = &self.carried {
-                blocks.push(Block::Context { uri: "insyde://handoff".into(), text: c.context.clone() });
+                blocks.push(Block::Context {
+                    uri: "insyde://handoff".into(),
+                    text: c.context.clone(),
+                });
             }
-            if self.use_brain {
-                if let Some(b) = &self.brain {
-                    let digest = b.digest(&self.project, &text);
-                    if !digest.is_empty() {
-                        blocks.push(Block::Context { uri: format!("insyde://brain/{}", self.project), text: digest });
-                    }
+            if self.use_brain
+                && let Some(b) = &self.brain
+            {
+                let digest = b.digest(&self.project, &text);
+                if !digest.is_empty() {
+                    blocks.push(Block::Context {
+                        uri: format!("insyde://brain/{}", self.project),
+                        text: digest,
+                    });
                 }
             }
             if let Some(row) = self.session_row {
                 let title: String = text.chars().take(60).collect();
-                self.store.update_session(row, Some(&title), None, None, None);
+                self.store
+                    .update_session(row, Some(&title), None, None, None);
                 self.title = title.into();
             }
             self.sent_first = true;
         }
+        tracing::info!(agent = ?self.agent, chars = text.len(), "send: {}", text.chars().take(80).collect::<String>());
         blocks.push(Block::Text(text));
         if let Some(session) = &self.session {
             session.prompt(blocks);
         }
-        self.composer.update(cx, |c, cx| c.set_value("", window, cx));
+        self.composer
+            .update(cx, |c, cx| c.set_value("", window, cx));
         self.unseen = false;
         cx.emit(ChatEvent::Status);
         cx.notify();
@@ -336,7 +365,9 @@ impl ChatView {
 
     fn render_item(&self, ix: usize, t: &Theme, cx: &App) -> AnyElement {
         let tr = self.transcript.lock();
-        let Some(item) = tr.items.get(ix) else { return div().into_any_element() };
+        let Some(item) = tr.items.get(ix) else {
+            return div().into_any_element();
+        };
         let running_turn = tr.running && tr.turn_started.is_some();
         let body: AnyElement = match item {
             Item::User { text } => div()
@@ -356,34 +387,63 @@ impl ChatView {
                 )
                 .into_any_element(),
             Item::Worked { secs } => {
-                let is_last_turn = !tr.items[ix + 1..].iter().any(|i| matches!(i, Item::Worked { .. }));
+                let is_last_turn = !tr.items[ix + 1..]
+                    .iter()
+                    .any(|i| matches!(i, Item::Worked { .. }));
                 let label = if running_turn && is_last_turn {
                     let el = insyde_core::store::now() - tr.turn_started.unwrap_or(0);
                     format!("Working for {} ›", fmt_dur(el))
                 } else {
                     format!("Worked for {} ›", fmt_dur(*secs))
                 };
-                div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(label).into_any_element()
+                div()
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child(label)
+                    .into_any_element()
             }
             Item::Agent { text } => div()
                 .text_color(t.ink_2)
-                .child(TextView::markdown(SharedString::from(format!("md-{ix}")), SharedString::from(text.clone())).selectable(true))
+                .child(
+                    TextView::markdown(
+                        SharedString::from(format!("md-{ix}")),
+                        SharedString::from(text.clone()),
+                    )
+                    .selectable(true),
+                )
                 .into_any_element(),
             Item::Thought { text } => div()
                 .text_size(metrics::TEXT_SM)
                 .text_color(t.ink_3)
                 .italic()
-                .child(ui::trunc(format!("Thinking · {}", text.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim())))
+                .child(ui::trunc(format!(
+                    "Thinking · {}",
+                    text.lines()
+                        .find(|l| !l.trim().is_empty())
+                        .unwrap_or("")
+                        .trim()
+                )))
                 .into_any_element(),
             Item::Tools { calls } => {
-                let mut card = div().flex().flex_col().gap(px(1.)).p(px(4.)).bg(t.panel).border_1().border_color(t.line).rounded(px(8.)).text_size(metrics::TEXT_SM);
+                let mut card = div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(1.))
+                    .p(px(4.))
+                    .bg(t.panel)
+                    .border_1()
+                    .border_color(t.line)
+                    .rounded(px(8.))
+                    .text_size(metrics::TEXT_SM);
                 for c in calls {
                     let meta_color = match c.status {
                         ToolStatus::Failed => t.err,
                         _ => t.ink_3,
                     };
                     let meta = match c.status {
-                        ToolStatus::Running | ToolStatus::Pending if c.meta.is_empty() => "running…".to_string(),
+                        ToolStatus::Running | ToolStatus::Pending if c.meta.is_empty() => {
+                            "running…".to_string()
+                        }
                         _ => c.meta.clone(),
                     };
                     card = card.child(
@@ -410,17 +470,49 @@ impl ChatView {
                                     .text_color(t.ink_3)
                                     .child(c.kind.label()),
                             )
-                            .child(ui::trunc(c.arg.clone()).flex_1().font_family(metrics::MONO_FONT).text_size(metrics::TEXT_MONO).text_color(t.ink_2))
-                            .child(div().flex_none().text_size(metrics::TEXT_XS).text_color(meta_color).child(meta)),
+                            .child(
+                                ui::trunc(c.arg.clone())
+                                    .flex_1()
+                                    .font_family(metrics::MONO_FONT)
+                                    .text_size(metrics::TEXT_MONO)
+                                    .text_color(t.ink_2),
+                            )
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .text_size(metrics::TEXT_XS)
+                                    .text_color(meta_color)
+                                    .child(meta),
+                            ),
                     );
                 }
                 card.into_any_element()
             }
             Item::Plan { entries } => {
-                let mut card = div().flex().flex_col().gap(px(6.)).p(px(12.)).bg(t.panel).border_1().border_color(t.line).rounded(px(8.)).text_size(metrics::TEXT_SM);
-                card = card.child(div().font_weight(FontWeight::SEMIBOLD).text_color(t.ink).child("Plan"));
+                let mut card = div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .p(px(12.))
+                    .bg(t.panel)
+                    .border_1()
+                    .border_color(t.line)
+                    .rounded(px(8.))
+                    .text_size(metrics::TEXT_SM);
+                card = card.child(
+                    div()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(t.ink)
+                        .child("Plan"),
+                );
                 for e in entries {
-                    let (mark, color) = if e.done { ("check", t.ok) } else if e.active { ("running", t.warn) } else { ("minus", t.ink_faint) };
+                    let (mark, color) = if e.done {
+                        ("check", t.ok)
+                    } else if e.active {
+                        ("running", t.warn)
+                    } else {
+                        ("minus", t.ink_faint)
+                    };
                     card = card.child(
                         div()
                             .flex()
@@ -438,20 +530,43 @@ impl ChatView {
                 .py(px(7.))
                 .rounded(px(8.))
                 .text_size(metrics::TEXT_SM)
-                .when(*error, |d| d.bg(t.err_bg).border_1().border_color(t.err_border).text_color(t.err))
+                .when(*error, |d| {
+                    d.bg(t.err_bg)
+                        .border_1()
+                        .border_color(t.err_border)
+                        .text_color(t.err)
+                })
                 .when(!*error, |d| d.text_color(t.ink_3))
                 .child(text.clone())
                 .into_any_element(),
         };
         let _ = cx;
-        div().w_full().flex().justify_center().pb(px(14.)).child(div().w_full().max_w(px(860.)).px(px(28.)).child(body)).into_any_element()
+        div()
+            .w_full()
+            .flex()
+            .justify_center()
+            .pb(px(14.))
+            .child(div().w_full().max_w(px(860.)).px(px(28.)).child(body))
+            .into_any_element()
     }
 
     fn render_empty(&self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let spec = AgentSpec::get(self.agent);
-        let mut col = div().flex_1().min_h_0().flex().flex_col().items_center().justify_center().gap(px(10.)).p(px(24.));
+        let mut col = div()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap(px(10.))
+            .p(px(24.));
         col = col.child(monogram(spec, 36., t)).child(
-            div().text_size(metrics::TEXT_TITLE).font_weight(FontWeight::SEMIBOLD).text_color(t.ink).child(format!("New {} session", spec.name)),
+            div()
+                .text_size(metrics::TEXT_TITLE)
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(t.ink)
+                .child(format!("New {} session", spec.name)),
         );
         if let Some(c) = &self.carried {
             let mut rows = div().flex().flex_col().gap(px(6.)).px(px(12.)).py(px(10.));
@@ -463,9 +578,23 @@ impl ChatView {
                         .gap(px(8.))
                         .text_size(metrics::TEXT_SM)
                         .text_color(t.ink_2)
-                        .child(div().size(px(14.)).rounded_full().bg(t.palette.green).flex().items_center().justify_center().child(icon("check", 8., t.palette.white)))
+                        .child(
+                            div()
+                                .size(px(14.))
+                                .rounded_full()
+                                .bg(t.palette.green)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(icon("check", 8., t.palette.white)),
+                        )
                         .child(div().flex_1().child(label.clone()))
-                        .child(div().text_size(metrics::TEXT_XS).text_color(t.ink_3).child(tok.clone())),
+                        .child(
+                            div()
+                                .text_size(metrics::TEXT_XS)
+                                .text_color(t.ink_3)
+                                .child(tok.clone()),
+                        ),
                 );
             }
             col = col.child(
@@ -513,14 +642,42 @@ impl ChatView {
                 .text_center()
                 .text_size(metrics::TEXT_SM)
                 .text_color(t.ink_3)
-                .child(format!("Shares the {} worktree with {}. Edits are coordinated per file.", self.branch, if self.others.is_empty() { "no other agents" } else { &self.others })),
+                .child(format!(
+                    "Shares the {} worktree with {}. Edits are coordinated per file.",
+                    self.branch,
+                    if self.others.is_empty() {
+                        "no other agents"
+                    } else {
+                        &self.others
+                    }
+                )),
         );
         if let Some(err) = self.transcript.lock().error.clone() {
             col = col.child(
-                div().max_w(px(420.)).px(px(12.)).py(px(8.)).rounded(px(8.)).bg(t.err_bg).border_1().border_color(t.err_border).text_color(t.err).text_size(metrics::TEXT_SM).child(err),
+                div()
+                    .max_w(px(420.))
+                    .px(px(12.))
+                    .py(px(8.))
+                    .rounded(px(8.))
+                    .bg(t.err_bg)
+                    .border_1()
+                    .border_color(t.err_border)
+                    .text_color(t.err)
+                    .text_size(metrics::TEXT_SM)
+                    .child(err),
             );
         } else if self.session.is_some() && !self.transcript.lock().ready {
-            col = col.child(ui::pulse("starting", div().flex().items_center().gap(px(8.)).text_size(metrics::TEXT_SM).text_color(t.ink_3).child(ui::dot(t.warn, 7.)).child(format!("Starting {}…", spec.name))));
+            col = col.child(ui::pulse(
+                "starting",
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child(ui::dot(t.warn, 7.))
+                    .child(format!("Starting {}…", spec.name)),
+            ));
         }
         match self.brain.as_ref().map(|b| b.node_count()) {
             Some(n) if n > 0 => {
@@ -551,11 +708,23 @@ impl ChatView {
                         .child(
                             div()
                                 .flex_1()
-                                .child(div().text_size(metrics::TEXT_SM).font_weight(FontWeight::SEMIBOLD).text_color(t.ink).child("Start with Project Brain"))
-                                .child(div().mt(px(1.)).text_size(metrics::TEXT_XS).text_color(t.ink_3).child(format!(
-                                    "{n} notes from main · {} tokens, compressed to 18k",
-                                    fmt_tokens(tokens)
-                                ))),
+                                .child(
+                                    div()
+                                        .text_size(metrics::TEXT_SM)
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(t.ink)
+                                        .child("Start with Project Brain"),
+                                )
+                                .child(
+                                    div()
+                                        .mt(px(1.))
+                                        .text_size(metrics::TEXT_XS)
+                                        .text_color(t.ink_3)
+                                        .child(format!(
+                                            "{n} notes from main · {} tokens, compressed to 18k",
+                                            fmt_tokens(tokens)
+                                        )),
+                                ),
                         )
                         .child(ui::switch(self.use_brain, t)),
                 );
@@ -580,7 +749,11 @@ impl ChatView {
 }
 
 fn fmt_dur(secs: i64) -> String {
-    if secs >= 60 { format!("{}m {}s", secs / 60, secs % 60) } else { format!("{secs}s") }
+    if secs >= 60 {
+        format!("{}m {}s", secs / 60, secs % 60)
+    } else {
+        format!("{secs}s")
+    }
 }
 
 impl Render for ChatView {
@@ -594,16 +767,38 @@ impl Render for ChatView {
             {
                 let tr = self.transcript.lock();
                 let status = tr.items.iter().rev().find_map(|i| match i {
-                    Item::Tools { calls } => calls.iter().rev().find(|c| matches!(c.status, ToolStatus::Running | ToolStatus::Pending)).map(|c| format!("{}…", c.title)),
+                    Item::Tools { calls } => calls
+                        .iter()
+                        .rev()
+                        .find(|c| matches!(c.status, ToolStatus::Running | ToolStatus::Pending))
+                        .map(|c| format!("{}…", c.title)),
                     _ => None,
                 });
-                let model_label = tr.model.as_ref().and_then(|m| tr.models.iter().find(|(id, _)| id == m).map(|(_, n)| n.clone()));
-                (tr.running, tr.permission.clone(), status, tr.models.clone(), model_label, tr.estimate_tokens())
+                let model_label = tr.model.as_ref().and_then(|m| {
+                    tr.models
+                        .iter()
+                        .find(|(id, _)| id == m)
+                        .map(|(_, n)| n.clone())
+                });
+                (
+                    tr.running,
+                    tr.permission.clone(),
+                    status,
+                    tr.models.clone(),
+                    model_label,
+                    tr.estimate_tokens(),
+                )
             }
         };
         let _ = &window;
 
-        let mut main = div().size_full().flex().flex_col().min_h_0().bg(t.ground).track_focus(&self.focus);
+        let mut main = div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .min_h_0()
+            .bg(t.ground)
+            .track_focus(&self.focus);
         if fresh {
             main = main.child(self.render_empty(&t, cx));
         } else {
@@ -611,7 +806,9 @@ impl Render for ChatView {
             let tt = t.clone();
             main = main.child(
                 list(self.list.clone(), move |ix, _w, cx| {
-                    view.upgrade().map(|v| v.read(cx).render_item(ix, &tt, cx)).unwrap_or_else(|| div().into_any_element())
+                    view.upgrade()
+                        .map(|v| v.read(cx).render_item(ix, &tt, cx))
+                        .unwrap_or_else(|| div().into_any_element())
                 })
                 .flex_1()
                 .min_h_0()
@@ -620,9 +817,21 @@ impl Render for ChatView {
         }
 
         // Live status row, permission prompt, and edit summary sit above the composer.
-        let mut dock = div().w_full().max_w(px(860.)).mx_auto().px(px(20.)).pb(px(16.)).flex().flex_col();
+        let mut dock = div()
+            .w_full()
+            .max_w(px(860.))
+            .mx_auto()
+            .px(px(20.))
+            .pb(px(16.))
+            .flex()
+            .flex_col();
         if running && permission.is_none() {
-            let elapsed = self.transcript.lock().turn_started.map(|s| insyde_core::store::now() - s).unwrap_or(0);
+            let elapsed = self
+                .transcript
+                .lock()
+                .turn_started
+                .map(|s| insyde_core::store::now() - s)
+                .unwrap_or(0);
             dock = dock.child(
                 div()
                     .px(px(8.))
@@ -634,7 +843,11 @@ impl Render for ChatView {
                     .text_color(t.ink_2)
                     .child(ui::pulse("run-dot", ui::dot(t.warn, 7.)))
                     .child(status_line.unwrap_or_else(|| "Thinking…".into()))
-                    .child(div().text_color(t.ink_3).child(format!("{} · {} tokens", fmt_dur(elapsed), fmt_tokens(tokens_turn)))),
+                    .child(div().text_color(t.ink_3).child(format!(
+                        "{} · {} tokens",
+                        fmt_dur(elapsed),
+                        fmt_tokens(tokens_turn)
+                    ))),
             );
         }
         if let Some(p) = permission {
@@ -642,11 +855,17 @@ impl Render for ChatView {
             for (i, (id, label, allow)) in p.options.iter().enumerate() {
                 let id = id.clone();
                 let b = if *allow && i == 0 {
-                    ui::primary_button(SharedString::from(format!("perm-{i}")), &t).h(px(26.)).px(px(10.)).text_size(metrics::TEXT_SM).child(label.clone())
+                    ui::primary_button(SharedString::from(format!("perm-{i}")), &t)
+                        .h(px(26.))
+                        .px(px(10.))
+                        .text_size(metrics::TEXT_SM)
+                        .child(label.clone())
                 } else {
                     ui::small_button(SharedString::from(format!("perm-{i}")), label.clone(), &t)
                 };
-                opts = opts.child(b.on_click(cx.listener(move |this, _, _, cx| this.answer(Some(id.clone()), cx))));
+                opts = opts.child(b.on_click(
+                    cx.listener(move |this, _, _, cx| this.answer(Some(id.clone()), cx)),
+                ));
             }
             dock = dock.child(
                 div()
@@ -659,7 +878,20 @@ impl Render for ChatView {
                     .flex()
                     .flex_col()
                     .gap(px(8.))
-                    .child(div().flex().items_center().gap(px(8.)).child(ui::dot(t.accent, 6.)).child(div().text_size(metrics::TEXT_SM).font_weight(FontWeight::SEMIBOLD).text_color(t.ink).child(p.title.clone())))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child(ui::dot(t.accent, 6.))
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_SM)
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(t.ink)
+                                    .child(p.title.clone()),
+                            ),
+                    )
                     .child(ui::mono_text(&t).child(p.detail.clone()))
                     .child(opts),
             );
@@ -681,11 +913,33 @@ impl Render for ChatView {
                         .border_1()
                         .border_color(t.line)
                         .text_size(metrics::TEXT_SM)
-                        .child(div().font_weight(FontWeight::MEDIUM).text_color(t.ink).child(format!("{} changed file{}", paths.len(), if paths.len() == 1 { "" } else { "s" })))
-                        .child(div().font_weight(FontWeight::MEDIUM).text_color(t.ok).child(format!("+{a}")))
-                        .child(div().font_weight(FontWeight::MEDIUM).text_color(t.err).child(format!("−{r}")))
+                        .child(
+                            div()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.ink)
+                                .child(format!(
+                                    "{} changed file{}",
+                                    paths.len(),
+                                    if paths.len() == 1 { "" } else { "s" }
+                                )),
+                        )
+                        .child(
+                            div()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.ok)
+                                .child(format!("+{a}")),
+                        )
+                        .child(
+                            div()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.err)
+                                .child(format!("−{r}")),
+                        )
                         .child(div().flex_1())
-                        .child(ui::small_button("open-diff", "Open diff", &t).on_click(cx.listener(|_, _, _, cx| cx.emit(ChatEvent::OpenDiff)))),
+                        .child(
+                            ui::small_button("open-diff", "Open diff", &t)
+                                .on_click(cx.listener(|_, _, _, cx| cx.emit(ChatEvent::OpenDiff))),
+                        ),
                 );
             }
         }
@@ -720,9 +974,19 @@ impl Render for ChatView {
         let brain_ready = self.brain.as_ref().is_some_and(|b| b.node_count() > 0);
         let model_label = model.unwrap_or_else(|| spec.name.to_string());
         let send_btn = if running {
-            ui::primary_button("stop", &t).size(px(28.)).p_0().justify_center().child(icon("stop", 13., t.on_primary)).on_click(cx.listener(|this, _, _, cx| this.stop(cx)))
+            ui::primary_button("stop", &t)
+                .size(px(28.))
+                .p_0()
+                .justify_center()
+                .child(icon("stop", 13., t.on_primary))
+                .on_click(cx.listener(|this, _, _, cx| this.stop(cx)))
         } else {
-            ui::primary_button("send", &t).size(px(28.)).p_0().justify_center().child(icon("send", 13., t.on_primary)).on_click(cx.listener(|this, _, w, cx| this.send(w, cx)))
+            ui::primary_button("send", &t)
+                .size(px(28.))
+                .p_0()
+                .justify_center()
+                .child(icon("send", 13., t.on_primary))
+                .on_click(cx.listener(|this, _, w, cx| this.send(w, cx)))
         };
         let ghost = |id: &'static str, label: String, t: &Theme| {
             let h = t.hover;
@@ -747,15 +1011,40 @@ impl Render for ChatView {
             .px(px(8.))
             .pt(px(6.))
             .pb(px(8.))
-            .child(ghost("model", format!("{model_label} ⌄"), &t).on_click(cx.listener(|this, _, _, cx| {
-                this.menu = if this.menu == Menu::Model { Menu::None } else { Menu::Model };
-                cx.notify();
-            })))
-            .child(ghost("policy", format!("{} ⌄", self.policy.label()), &t).on_click(cx.listener(|this, _, _, cx| {
-                this.menu = if this.menu == Menu::Policy { Menu::None } else { Menu::Policy };
-                cx.notify();
-            })))
-            .child(div().px(px(7.)).py(px(2.)).rounded(px(4.)).bg(t.hover_2).text_size(metrics::TEXT_XS).text_color(t.ink_3).child(self.branch.clone()));
+            .child(
+                ghost("model", format!("{model_label} ⌄"), &t).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.menu = if this.menu == Menu::Model {
+                            Menu::None
+                        } else {
+                            Menu::Model
+                        };
+                        cx.notify();
+                    },
+                )),
+            )
+            .child(
+                ghost("policy", format!("{} ⌄", self.policy.label()), &t).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.menu = if this.menu == Menu::Policy {
+                            Menu::None
+                        } else {
+                            Menu::Policy
+                        };
+                        cx.notify();
+                    },
+                )),
+            )
+            .child(
+                div()
+                    .px(px(7.))
+                    .py(px(2.))
+                    .rounded(px(4.))
+                    .bg(t.hover_2)
+                    .text_size(metrics::TEXT_XS)
+                    .text_color(t.ink_3)
+                    .child(self.branch.clone()),
+            );
         if brain_ready {
             let on = self.use_brain;
             toolbar = toolbar.child(
@@ -789,7 +1078,12 @@ impl Render for ChatView {
             .border_color(t.field_border)
             .rounded(metrics::RADIUS_LG)
             .shadow(t.pop_shadow(false))
-            .child(div().px(px(6.)).pt(px(6.)).child(Textarea::new(&self.composer).appearance(false)))
+            .child(
+                div()
+                    .px(px(6.))
+                    .pt(px(6.))
+                    .child(Textarea::new(&self.composer).appearance(false)),
+            )
             .child(toolbar);
         if self.menu != Menu::None {
             let mut menu = div()
@@ -809,7 +1103,13 @@ impl Render for ChatView {
             match self.menu {
                 Menu::Model => {
                     if models.is_empty() {
-                        menu = menu.child(div().p(px(8.)).text_size(metrics::TEXT_SM).text_color(t.ink_3).child("This agent doesn't expose model choices."));
+                        menu = menu.child(
+                            div()
+                                .p(px(8.))
+                                .text_size(metrics::TEXT_SM)
+                                .text_color(t.ink_3)
+                                .child("This agent doesn't expose model choices."),
+                        );
                     }
                     for (id, name) in models {
                         let h = t.hover;
