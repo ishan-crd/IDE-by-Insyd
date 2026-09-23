@@ -6,7 +6,7 @@ Rename note: the workspace is called `ide` and crates are `insyde-*` until a pro
 
 ## Non-negotiables
 
-1. **No Electron, no WebView for the app chrome.** WebView (wry) is allowed for exactly one thing: the optional Browser tab.
+1. **No Electron, no WebView for the app chrome.** WebView (wry) is allowed for exactly one thing: the optional Browser tab. The separate *web client* (a browser talking to InsyDE over the network) is HTML/JS by necessity; it has no logic of its own beyond rendering.
 2. **Stable Rust toolchain**, pinned in `rust-toolchain.toml` (Zed and gpui-kit build on stable). If a dependency demands nightly, replace the dependency.
 3. **Every long operation off the main thread.** Main thread does layout + paint only. Budget: no main-thread task over 4 ms in debug builds (a frame watchdog logs offenders).
 4. **Agents talk protocols, not scraped terminals.** ACP first, Codex app-server second, Claude `stream-json` as a fallback. A raw PTY provider exists for arbitrary CLIs, but it is a terminal tab, not a chat.
@@ -39,6 +39,7 @@ Rename note: the workspace is called `ide` and crates are `insyde-*` until a pro
 | Markdown (chat) | gpui-component Markdown renderer for prose; custom code-block element with tree-sitter highlighting and copy/apply actions. | — | — |
 | Browser tab | gpui-component `webview` feature (wry). Overlay limitation accepted. | — | CEF off-screen (heavy). |
 | IPC (CLI ↔ app) | Unix domain socket (named pipe on Windows) with JSON-RPC 2.0 (`serde_json`), same message types as the in-process core API. | — | HTTP (Arbor). Socket is lower-latency and needs no port. |
+| Web client (remote access from a browser) | Plain HTML/CSS/ES modules in `web/`, no build step, compiled into the binary; `xterm.js` 6 (MIT, vendored) for terminals. Served by `insyde-core::web`: a small HTTP + WebSocket (RFC 6455) server on std sockets, thread per connection, no tokio. | xterm 6.0.0 | A Rust/WASM UI (Leptos, Dioxus): adds a wasm toolchain and a second UI stack for no user-visible gain. The browser is only a window onto the Rust core; every rule (git, agents, terminals) still runs in Rust. |
 | Remote (Phase 9) | Headless `ide-server` binary over SSH (system `ssh` with ControlMaster), same JSON-RPC core API, like Zed's `remote_server`. | — | `russh` in-process client. |
 | Logging | `tracing` + `tracing-appender` (rolling files) + `tracing-tracy` behind a feature for profiling. | — | — |
 | Errors | `thiserror` in libraries, `anyhow` in binaries. | — | — |

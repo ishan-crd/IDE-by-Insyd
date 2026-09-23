@@ -31,6 +31,11 @@ agent persistent context about the repository's main branch.
 - **Teams**: a lead plus specialists, each in its own worktree, coordinating through `insy`.
 - **Editor and review**: code editor with highlighting and ⌘S; comment on any diff line and send
   the comments to the agent.
+- **Web access**: use InsyDE from any browser, including your phone. Turn it on in Settings › Web
+  access and scan the QR code (same Wi-Fi or Tailscale), or switch on a public https link through
+  `cloudflared`. You get projects and threads, live agent chat with approvals, a changes panel with
+  diffs, commit, push and PR, and real terminals on your Mac with a phone key bar. Headless machines
+  can run `insy serve` instead.
 - Light and dark themes from the design tokens; all regions resizable and persisted.
 - **Glass** (Settings, Look & feel): the sidebars, top bar and status bar turn translucent over a
   blurred desktop, and chats and terminals float on it as solid rounded sheets. Tint is adjustable
@@ -53,6 +58,7 @@ insy agent new codex --prompt "..." # start an agent (prints its id)
 insy agent send 3 "run the tests" && insy agent wait 3
 insy brain search "auth refresh"
 insy coord set plan "..."           # shared state for agent teams
+insy serve --network                # web client for browsers on your network (prints a QR code)
 ```
 
 ## Build and run (macOS)

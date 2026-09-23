@@ -166,6 +166,16 @@ pub trait SessionDriver: Send {
 
 - Team = lead session + N specialist sessions, each in its own worktree (or same worktree, sequential). Coordination state lives in `<worktree>/.ide/coordination.json` (agents can read it as a file) and in the store; the CLI exposes `ide agent send <session> "<msg>"`, `ide agent list`, `ide coordination-state get|set`, `ide team run <spec.toml>`. Agents call the CLI from their own tools (it is on PATH inside our terminals with `IDE_SOCKET` set), which is how "agents message one another" works without a new protocol. Context groups (`FEATURE.md`) are prepended to prompts as `resource_link`s.
 
+## 10b. Web access (`insyde-core/src/web/`, `web/`)
+
+- **Server** (`web/mod.rs`, `http.rs`): std `TcpListener`, one thread per connection. `GET` serves the client from `include_bytes!` (CSP: self only); `/ws?t=<token>` upgrades to a WebSocket with a hand-rolled RFC 6455 codec, so the socket's read and write halves live on two threads (a cloned `TcpStream` each). `/auth` lets the client tell a bad pairing from an unreachable host.
+- **Pairing**: a 256-bit hex token in `<data dir>/web-token` (0600), compared in constant time, carried in the link fragment (`/#t=…`, never sent in HTTP requests except the WebSocket query) and stored by the browser. "New link" rewrites it and drops every socket.
+- **Hub** (`hub.rs`): shared by all clients and kept alive across server restarts. Owns web agent threads (`AcpSession` per store session, lazily started) and browser terminals (`pty.rs`). Requests are JSON `{id, m, p}`; memory-only calls (keystrokes, resize, cancel) run in order on the socket thread, anything touching git or disk on its own thread.
+- **Streaming**: an agent's notify marks its thread dirty; one flusher thread wakes at most ~30×/s and sends `{"ev":"thread", len, set:[[i,item]…], meta}` with only the items whose JSON changed (the last 24 while streaming, all of them when a turn ends). Sidebar status changes are broadcast separately.
+- **Terminals**: raw PTY bytes (alacritty's `tty`, fd switched back to blocking) go out as binary frames `[1][u32 id][bytes]`; xterm.js emulates. A 512 KB replay buffer is sent on attach under the same lock the pump holds, so a client never misses or doubles output. Terminals outlive the tab.
+- **Reach**: `127.0.0.1` by default; all interfaces for LAN/Tailscale; optional `cloudflared tunnel --url` for a public https link. Runs inside the app (Settings › Web access) or headless (`insy serve`).
+- A slow client is cut off (bounded queue, socket shutdown) rather than buffered without limit.
+
 ## 11. Threading & performance rules
 
 - Main thread: layout, paint, input, entity updates. Never `block_on`, never file I/O, never `Mutex` held across an await.
