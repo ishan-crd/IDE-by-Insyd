@@ -537,13 +537,16 @@ impl SettingsView {
         );
         tile!(
             Cat::Agents,
-            "Open agents as",
-            "Chat UI over ACP, or the agent's own terminal UI. Holding ⌘ picks the other.",
+            "Open new agents in",
+            "What + Agent opens: InsyDE's chat window, or the agent's own app in a terminal tab. Also switchable at the bottom of the + Agent menu; holding ⌘ picks the other one.",
             s.open_agents_as != d.open_agents_as,
             Some(|s: &mut Settings| s.open_agents_as = OpenAs::Chat),
             self.choice(
                 "open-as",
-                &[("Chat", OpenAs::Chat), ("Terminal UI", OpenAs::Terminal)],
+                &[
+                    ("Chat window", OpenAs::Chat),
+                    ("Terminal", OpenAs::Terminal)
+                ],
                 s.open_agents_as,
                 |s, v| s.open_agents_as = v,
                 t,
@@ -552,16 +555,16 @@ impl SettingsView {
         );
         tile!(
             Cat::Agents,
-            "Approvals for new sessions",
-            "What agents may do without asking. Each chat can still change it.",
+            "Permissions by default",
+            "Ask before every action, auto-approve file edits, or skip permission prompts entirely. In terminals this passes the agent's own flag (Claude Code --dangerously-skip-permissions, Codex --dangerously-bypass-approvals-and-sandbox, Grok bypassPermissions). Each chat can still change it.",
             s.approval != d.approval,
             Some(|s: &mut Settings| s.approval = Settings::default().approval),
             self.choice(
                 "approval",
                 &[
-                    ("Ask every time", Approval::Ask),
+                    ("Ask for permission", Approval::Ask),
                     ("Auto-approve edits", Approval::AcceptEdits),
-                    ("Full access", Approval::FullAccess)
+                    ("Skip permissions", Approval::FullAccess)
                 ],
                 s.approval,
                 |s, v| s.approval = v,

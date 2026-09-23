@@ -1111,10 +1111,20 @@ impl Workspace {
             return;
         };
         let spec = AgentSpec::get(agent);
+        // The default permission level from settings becomes the CLI's own flag
+        // (e.g. `claude --dangerously-skip-permissions`).
+        let perms = insyde_core::agents::tui_permission_args(
+            spec.key,
+            insyde_core::settings::get().approval,
+        );
         let program = spec.tui.map(|c| {
             (
                 c.program.to_string(),
-                c.args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                c.args
+                    .iter()
+                    .chain(perms)
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>(),
             )
         });
         if let Some((p, _)) = &program

@@ -198,6 +198,30 @@ pub static AGENTS: &[AgentSpec] = &[
 ];
 
 /// Default agent for quick-add ("+ Agent") — Claude Code, as in the design.
+/// Extra arguments that give an agent's own terminal UI the chosen
+/// permission level. Only agents whose CLIs document such flags get any.
+pub fn tui_permission_args(
+    key: &str,
+    approval: crate::settings::Approval,
+) -> &'static [&'static str] {
+    use crate::settings::Approval::*;
+    match (key, approval) {
+        (_, Ask) => &[],
+        ("claude", AcceptEdits) => &["--permission-mode", "acceptEdits"],
+        ("claude", FullAccess) => &["--dangerously-skip-permissions"],
+        ("codex", AcceptEdits) => &[
+            "--sandbox",
+            "workspace-write",
+            "--ask-for-approval",
+            "on-request",
+        ],
+        ("codex", FullAccess) => &["--dangerously-bypass-approvals-and-sandbox"],
+        ("grok", AcceptEdits) => &["--permission-mode", "acceptEdits"],
+        ("grok", FullAccess) => &["--permission-mode", "bypassPermissions"],
+        _ => &[],
+    }
+}
+
 pub const DEFAULT_AGENT: AgentId = AgentId::ClaudeCode;
 
 /// PATH lookup, also checking common install dirs that GUI apps on macOS

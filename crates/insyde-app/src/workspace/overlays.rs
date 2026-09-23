@@ -98,6 +98,7 @@ impl Workspace {
                         .text_color(t.ink_3)
                         .child(format!("Add to {branch}")),
                 );
+            let default_i = Self::default_agent_index();
             for (i, spec) in AGENTS.iter().enumerate() {
                 let hover = t.hover;
                 let key = if spec.is_tool() {
@@ -108,7 +109,7 @@ impl Workspace {
                 let installed = spec.is_tool()
                     || spec.acp.map(|c| AgentSpec::available(&c)).unwrap_or(false)
                     || spec.tui.map(|c| AgentSpec::available(&c)).unwrap_or(false);
-                let hint = if i == 2 {
+                let hint = if i == default_i {
                     "default"
                 } else if !installed {
                     "not installed"
@@ -128,7 +129,7 @@ impl Workspace {
                         .px(px(8.))
                         .rounded(metrics::RADIUS)
                         .cursor_pointer()
-                        .bg(if i == 2 {
+                        .bg(if i == default_i {
                             t.hover_2
                         } else {
                             gpui::transparent_black()
@@ -196,20 +197,54 @@ impl Workspace {
                     )
                     .on_click(cx.listener(|this, _, w, cx| this.open_team_form(w, cx))),
             );
+            // How new agents start: remembered in settings, changeable right here.
+            let st = insyde_core::settings::get();
+            use insyde_core::settings::{Approval, OpenAs};
             menu = menu.child(
                 div()
-                    .flex()
-                    .items_center()
                     .mt(px(4.))
                     .px(px(8.))
                     .pt(px(8.))
-                    .pb(px(4.))
+                    .pb(px(2.))
                     .border_t_1()
                     .border_color(t.line_soft)
-                    .text_size(metrics::TEXT_XS)
-                    .text_color(t.ink_3)
-                    .child("Hold ⌘ for terminal UI")
-                    .child(div().ml_auto().child("1–9 to pick")),
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .child(self.menu_seg(
+                        "Open in",
+                        "am-open",
+                        &[("Chat", OpenAs::Chat), ("Terminal", OpenAs::Terminal)],
+                        st.open_agents_as,
+                        |s, v| s.open_agents_as = v,
+                        t,
+                        cx,
+                    ))
+                    .child(self.menu_seg(
+                        "Permissions",
+                        "am-perm",
+                        &[
+                            ("Ask", Approval::Ask),
+                            ("Edits", Approval::AcceptEdits),
+                            ("Skip", Approval::FullAccess),
+                        ],
+                        st.approval,
+                        |s, v| s.approval = v,
+                        t,
+                        cx,
+                    ))
+                    .child(
+                        div()
+                            .flex()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child(if st.approval == Approval::FullAccess {
+                                "No permission prompts"
+                            } else {
+                                "⌘-click: other mode"
+                            })
+                            .child(div().ml_auto().child("1–9 to pick")),
+                    ),
             );
             root = root
                 .child(scrim("menu-scrim", cx, |this| this.menu_open = false))
@@ -644,4 +679,62 @@ fn scrim(
             close(this);
             cx.notify();
         }))
+}
+
+impl Workspace {
+    /// A labelled segmented control in the agent menu, bound to one setting.
+    #[allow(clippy::too_many_arguments)]
+    fn menu_seg<T: Copy + PartialEq + 'static>(
+        &self,
+        label: &'static str,
+        id: &'static str,
+        opts: &[(&'static str, T)],
+        cur: T,
+        set: fn(&mut insyde_core::settings::Settings, T),
+        t: &Theme,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let mut seg = div()
+            .flex()
+            .p(px(2.))
+            .gap(px(2.))
+            .rounded(metrics::RADIUS)
+            .bg(t.hover);
+        for (i, (name, v)) in opts.iter().copied().enumerate() {
+            let on = v == cur;
+            seg = seg.child(
+                div()
+                    .id(SharedString::from(format!("{id}-{i}")))
+                    .px(px(8.))
+                    .h(px(22.))
+                    .flex()
+                    .items_center()
+                    .rounded(px(4.))
+                    .cursor_pointer()
+                    .text_size(metrics::TEXT_XS)
+                    .font_weight(FontWeight::MEDIUM)
+                    .when(on, |d| {
+                        d.bg(t.seg_active).shadow(t.seg_shadow()).text_color(t.ink)
+                    })
+                    .when(!on, |d| d.text_color(t.ink_3))
+                    .child(name)
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        insyde_core::settings::update(|s| set(s, v));
+                        cx.notify();
+                    })),
+            );
+        }
+        div()
+            .flex()
+            .items_center()
+            .child(
+                div()
+                    .flex_1()
+                    .text_size(metrics::TEXT_XS)
+                    .text_color(t.ink_3)
+                    .child(label),
+            )
+            .child(seg)
+            .into_any_element()
+    }
 }
