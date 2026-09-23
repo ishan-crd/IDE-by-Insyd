@@ -1,0 +1,10 @@
+{
+  "name": "InsyDE",
+  "short_name": "InsyDE",
+  "description": "Drive your InsyDE agents and terminals from any browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#151514",
+  "theme_color": "#1D1D1C",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
