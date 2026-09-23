@@ -25,10 +25,16 @@ Crates are named `insyde-*` (the plan's `ide-*`).
   capped and drained); brain indexing uses streaming `cat-file --batch`. Revisit if status gets hot.
 - **No tokio**: the ACP SDK is runtime-agnostic; each agent session runs on a small `smol` thread,
   UI work on GPUI's executors.
+- **objc2**: `objc2-foundation` (core, NSFileManager trash) and `objc2-app-kit` (app, file
+  pasteboard) are named directly; both were already in the tree through gpui.
 - **Shaders**: default feature `runtime-shaders` compiles Metal shaders at launch (~0.8 s) because
   the Metal toolchain isn't installed by default in Xcode 26. See README for the fast path.
 - **Session controls** (context meter, Hand off, agent count, history): in the top bar, not the
   center tab strip as in the design (user request). Their popovers anchor under the buttons.
+- **File tree context menu**: right-click a file or folder for Open, Open in New Tab (a file tab
+  in the center strip), Open with Default App, Reveal in Finder, Open in Terminal, Copy (the file
+  itself), Copy Path, Copy Relative Path, Rename, Duplicate, New File/Folder, Move to Trash
+  (`insyde-core::fileops`; over SSH, Delete permanently). Empty space opens the root's menu.
 - **Top bar right side**: no Create PR button (the Checks panel still has it); the Run split
   button takes its place. Run is labelled by the detected tool (`Run pnpm`, `Run cargo`), can be
   overridden in Settings > Terminal, and its menu runs saved quick commands or any typed one.

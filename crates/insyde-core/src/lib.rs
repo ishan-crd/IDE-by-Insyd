@@ -3,6 +3,7 @@
 
 pub mod agents;
 pub mod brain;
+pub mod fileops;
 pub mod forge;
 pub mod git;
 pub mod project;

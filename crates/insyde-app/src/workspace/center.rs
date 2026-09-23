@@ -65,7 +65,17 @@ impl Workspace {
                         }
                         cx.notify();
                     }))
-                    .child(monogram(spec, 18., t))
+                    .child(if tab.is_agent() {
+                        monogram(spec, 18., t).into_any_element()
+                    } else {
+                        div()
+                            .size(px(18.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(icon("file", 13., t.ink_3))
+                            .into_any_element()
+                    })
                     .child(ui::trunc(tab.title(cx)).flex_1().font_weight(if is {
                         FontWeight::MEDIUM
                     } else {
@@ -188,6 +198,13 @@ impl Workspace {
 
         let body: AnyElement = match ws.tabs.get(active).map(|t| &t.view) {
             Some(TabView::Chat(c)) => c.clone().into_any_element(),
+            Some(TabView::File(e)) => div()
+                .flex()
+                .flex_col()
+                .size_full()
+                .pt(px(10.))
+                .child(e.clone())
+                .into_any_element(),
             Some(TabView::Term(v)) => div()
                 .size_full()
                 .bg(t.inner(t.panel_2))

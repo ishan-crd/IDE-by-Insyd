@@ -33,3 +33,9 @@ smol.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 ignore.workspace = true
+
+# File tree "Copy": put the file itself on the pasteboard (gpui only writes text/images).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }

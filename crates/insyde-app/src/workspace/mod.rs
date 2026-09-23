@@ -4,6 +4,7 @@
 
 mod bottom;
 mod center;
+mod files;
 mod overlays;
 mod right;
 mod rpc;
@@ -77,6 +78,8 @@ pub enum BottomTab {
 pub enum TabView {
     Chat(Entity<ChatView>),
     Term(Entity<TerminalView>),
+    /// A file opened with "Open in New Tab" from the file tree.
+    File(Entity<crate::editor::FileEditor>),
 }
 
 pub struct AgentTab {
@@ -90,14 +93,41 @@ impl AgentTab {
         match &self.view {
             TabView::Chat(c) => c.read(cx).title.clone(),
             TabView::Term(t) => t.read(cx).title.clone(),
+            TabView::File(e) => {
+                let rel = &e.read(cx).rel;
+                rel.rsplit('/').next().unwrap_or(rel).to_string().into()
+            }
         }
     }
     pub fn running(&self, cx: &App) -> bool {
         match &self.view {
             TabView::Chat(c) => c.read(cx).is_running(),
             TabView::Term(t) => t.read(cx).is_busy(),
+            TabView::File(_) => false,
         }
     }
+    /// Agent tabs (chat or terminal), as opposed to file tabs.
+    pub fn is_agent(&self) -> bool {
+        !matches!(self.view, TabView::File(_))
+    }
+}
+
+/// The file tree's right-click menu.
+pub struct FileMenu {
+    pub path: PathBuf,
+    pub rel: String,
+    pub is_dir: bool,
+    /// Where the menu opens, in window coordinates.
+    pub pos: gpui::Point<gpui::Pixels>,
+    /// Rename / New File / New Folder: the name being typed.
+    pub edit: Option<(NameEdit, Entity<InputState>)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NameEdit {
+    Rename,
+    NewFile,
+    NewFolder,
 }
 
 pub struct Pane {
@@ -225,6 +255,7 @@ pub struct Workspace {
     pub history_open: bool,
     /// The Run button's menu, and its "any command" input.
     pub run_menu: Option<Entity<InputState>>,
+    pub file_menu: Option<FileMenu>,
     pub brain_view: Option<Entity<BrainView>>,
     pub new_wt: Option<Entity<InputState>>,
     pub search: Entity<InputState>,
@@ -311,6 +342,7 @@ impl Workspace {
             handoff: None,
             history_open: false,
             run_menu: None,
+            file_menu: None,
             brain_view: None,
             new_wt: None,
             search,
@@ -984,7 +1016,7 @@ impl Workspace {
         let mut names: Vec<&str> = ws
             .tabs
             .iter()
-            .filter(|t| Some(t.id) != active_id)
+            .filter(|t| Some(t.id) != active_id && t.is_agent())
             .map(|t| AgentSpec::get(t.agent).name)
             .collect();
         names.sort();
@@ -1214,6 +1246,18 @@ impl Workspace {
             return;
         }
         if let Some(i) = ws.tabs.iter().position(|t| t.id == id) {
+            if let TabView::File(e) = &ws.tabs[i].view
+                && e.read(cx).dirty
+            {
+                let rel = e.read(cx).rel.clone();
+                ws.active = i;
+                self.toast(
+                    format!("Unsaved changes in {rel}: save or revert first"),
+                    true,
+                    cx,
+                );
+                return;
+            }
             let tab = ws.tabs.remove(i);
             if let TabView::Chat(c) = &tab.view
                 && let Some(row) = c.read(cx).session_row()
@@ -1478,7 +1522,13 @@ impl Workspace {
     }
 
     pub fn save_file(&mut self, cx: &mut Context<Self>) {
-        if let Some(ed) = self.wt().and_then(|w| w.editor.clone()) {
+        let tab_editor = self
+            .wt()
+            .and_then(|w| match w.tabs.get(w.active).map(|t| &t.view) {
+                Some(TabView::File(e)) => Some(e.clone()),
+                _ => None,
+            });
+        if let Some(ed) = tab_editor.or_else(|| self.wt().and_then(|w| w.editor.clone())) {
             ed.update(cx, |e, cx| e.save(cx));
         }
     }
@@ -2021,8 +2071,9 @@ impl Workspace {
 
     fn on_key(&mut self, e: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let k = &e.keystroke;
-        if self.run_menu.is_some() && k.key == "escape" {
+        if (self.run_menu.is_some() || self.file_menu.is_some()) && k.key == "escape" {
             self.run_menu = None;
+            self.file_menu = None;
             cx.notify();
             cx.stop_propagation();
             return;
@@ -2113,6 +2164,7 @@ impl Workspace {
                             running += 1;
                         }
                     }
+                    TabView::File(_) => {}
                 }
             }
         }

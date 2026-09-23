@@ -303,6 +303,20 @@ impl Workspace {
             root = root.child(scrim("run-scrim", cx, |this| this.run_menu = None));
         }
 
+        if self.file_menu.is_some() {
+            root = root
+                .child(
+                    scrim("file-scrim", cx, |this| this.file_menu = None).on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(|this, _, _, cx| {
+                            this.file_menu = None;
+                            cx.notify();
+                        }),
+                    ),
+                )
+                .child(self.render_file_menu(t, cx));
+        }
+
         if let Some(bv) = &self.brain_view {
             root = root.child(bv.clone());
         }

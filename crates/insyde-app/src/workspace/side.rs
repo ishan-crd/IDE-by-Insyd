@@ -448,6 +448,8 @@ impl Workspace {
                 .unwrap_or_default();
             let open = self.tree_open.contains(&p);
             let hover = t.hover;
+            let menu_here = self.file_menu.as_ref().is_some_and(|m| m.path == p);
+            let (p_menu, rel_menu) = (p.clone(), rel.clone());
             let sel = self
                 .wt()
                 .and_then(|w| w.editor.as_ref())
@@ -467,10 +469,25 @@ impl Workspace {
                     .text_color(if sel { t.ink } else { t.ink_2 })
                     .bg(if sel {
                         t.sel_bg
+                    } else if menu_here {
+                        t.hover
                     } else {
                         gpui::transparent_black()
                     })
                     .hover(move |s| s.bg(hover))
+                    .on_mouse_down(
+                        gpui::MouseButton::Right,
+                        cx.listener(move |this, e: &gpui::MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            this.open_file_menu(
+                                p_menu.clone(),
+                                rel_menu.clone(),
+                                is_dir,
+                                e.position,
+                                cx,
+                            );
+                        }),
+                    )
                     .child(if is_dir {
                         icon(
                             if open {
@@ -528,6 +545,13 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    // Right-click on empty space: the worktree root's menu.
+                    .on_mouse_down(
+                        gpui::MouseButton::Right,
+                        cx.listener(move |this, e: &gpui::MouseDownEvent, _, cx| {
+                            this.open_file_menu(root.clone(), String::new(), true, e.position, cx);
+                        }),
+                    )
                     .child(col),
             )
             .into_any_element()

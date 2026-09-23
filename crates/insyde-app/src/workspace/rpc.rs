@@ -168,7 +168,7 @@ impl Workspace {
                 let Some(ws) = self.wts.get(&w.path) else {
                     continue;
                 };
-                for t in &ws.tabs {
+                for t in ws.tabs.iter().filter(|t| t.is_agent()) {
                     let kind = if matches!(t.view, TabView::Chat(_)) {
                         "chat"
                     } else {
@@ -196,7 +196,7 @@ impl Workspace {
             .find(|t| t.id == id)
             .and_then(|t| match &t.view {
                 TabView::Chat(c) => Some(c.clone()),
-                TabView::Term(_) => None,
+                TabView::Term(_) | TabView::File(_) => None,
             })
     }
 

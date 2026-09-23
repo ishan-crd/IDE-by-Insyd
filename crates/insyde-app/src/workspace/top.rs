@@ -223,7 +223,10 @@ impl Workspace {
     /// worktree's current tab, sized to the top bar's controls. The Hand off
     /// and history popovers open anchored under their buttons.
     fn render_session_controls(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
-        let Some(agents) = self.wt().map(|ws| ws.tabs.len()) else {
+        let Some(agents) = self
+            .wt()
+            .map(|ws| ws.tabs.iter().filter(|t| t.is_agent()).count())
+        else {
             return div().into_any_element();
         };
         let (used, size) = self

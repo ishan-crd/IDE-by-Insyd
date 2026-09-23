@@ -27,3 +27,7 @@ qrcode = { version = "0.14", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# Move deleted files to the Trash (already in the tree via gpui).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSFileManager", "NSURL", "NSString", "NSError"] }
