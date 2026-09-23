@@ -321,6 +321,14 @@ impl ChatView {
         (t.summary_text(24_000), t.open_tasks(), paths, a, r)
     }
 
+    pub fn set_title(&mut self, title: String) {
+        if let Some(row) = self.session_row {
+            self.store
+                .update_session(row, Some(&title), None, None, None);
+        }
+        self.title = title.into();
+    }
+
     /// The agent's most recent reply (for `insy agent read` / `wait`).
     pub fn last_reply(&self) -> String {
         let t = self.transcript.lock();
@@ -368,7 +376,12 @@ impl ChatView {
                 }
             }
             if let Some(row) = self.session_row {
-                let title: String = text.chars().take(60).collect();
+                let first = text
+                    .lines()
+                    .find(|l| !l.trim().is_empty())
+                    .unwrap_or("")
+                    .trim();
+                let title: String = first.chars().take(60).collect();
                 self.store
                     .update_session(row, Some(&title), None, None, None);
                 self.title = title.into();

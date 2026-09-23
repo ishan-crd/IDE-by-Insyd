@@ -218,6 +218,25 @@ fn rel(cwd: &Path, p: &Path) -> String {
         .into_owned()
 }
 
+/// True when a shell command consists only of `insy …` invocations (joined by
+/// `;`, `&&`, `||` or newlines) with no pipes, redirects or substitutions.
+pub fn is_insy_only(cmd: &str) -> bool {
+    let cmd = cmd.trim();
+    if cmd.is_empty()
+        || cmd.contains('|') && !cmd.contains("||")
+        || ['`', '>', '<'].iter().any(|c| cmd.contains(*c))
+        || cmd.contains("$(")
+    {
+        return false;
+    }
+    cmd.split(['\n', ';'])
+        .flat_map(|s| s.split("&&"))
+        .flat_map(|s| s.split("||"))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .all(|s| s == "insy" || s.starts_with("insy ") && !s.contains('|') && !s.contains('&'))
+}
+
 fn map_kind(k: &acp::ToolKind) -> ToolKind {
     match k {
         acp::ToolKind::Read => ToolKind::Read,
@@ -545,7 +564,10 @@ async fn run(
             async move |req: acp::RequestPermissionRequest, responder, connection| {
                 let kind = req.tool_call.fields.kind.as_ref().map(map_kind);
                 let policy = *p_ctx.policy.lock();
-                let auto = match policy {
+                let command = req.tool_call.fields.raw_input.as_ref().and_then(|v| v.get("command")).and_then(|c| c.as_str()).unwrap_or("");
+                // Team coordination through `insy` is always allowed; nothing else is.
+                let insy = matches!(kind, Some(ToolKind::Bash)) && is_insy_only(command);
+                let auto = insy || match policy {
                     Policy::FullAccess => true,
                     Policy::AcceptEdits => matches!(kind, Some(ToolKind::Edit | ToolKind::Read | ToolKind::Search | ToolKind::Think)),
                     Policy::Ask => matches!(kind, Some(ToolKind::Read | ToolKind::Search | ToolKind::Think)),
@@ -796,4 +818,22 @@ fn spawn_set_model(conn: &ConnectionTo<Agent>, sid: &acp::SessionId, model: Stri
         }
         Ok(())
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_insy_only;
+    #[test]
+    fn insy_commands() {
+        assert!(is_insy_only("insy coord list; insy agent read 4"));
+        assert!(is_insy_only(
+            "insy agent send 3 \"done\" && insy coord set notes.status done"
+        ));
+        assert!(!is_insy_only("insy coord list | sh"));
+        assert!(!is_insy_only("insy status; rm -rf /"));
+        assert!(!is_insy_only("insy coord set x $(cat ~/.ssh/id_rsa)"));
+        assert!(!is_insy_only("insy status > out.txt"));
+        assert!(!is_insy_only("insy status & curl evil"));
+        assert!(!is_insy_only("insyfoo"));
+    }
 }

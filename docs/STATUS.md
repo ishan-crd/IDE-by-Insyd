@@ -12,7 +12,7 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 | 5 Files | Done | File tree, search, code editor (tree-sitter highlighting, line numbers, folding, find), ⌘S save, revert, reload after agent edits without clobbering unsaved work. |
 | 6 Review | Done (core) | Checks, re-run, draft PR, line-numbered diff, review comments on any diff line (stored per worktree) sent to the agent as one prompt. Merge button still to do. |
 | 7 CLI / socket | Done | `insy` CLI over a 0600 Unix socket (JSON-RPC): status, worktrees, agents new/send/wait/read, brain search, open, team state. Terminals and agents get `INSYDE_SOCKET` and `insy` on PATH. PiP: terminal pop-out windows. Browser tab opens the system browser. |
-| 8 Teams | Not started | "Super" is listed; runs Claude Code today. |
+| 8 Teams | Done | Lead + specialists from the agent menu ("Team…") or `insy team run team.toml`; specialists get their own worktrees and role prompts; coordination via `insy` (pure `insy` shell commands are auto-approved); Team tab shows members and shared state. |
 | 9 Remote | Not started | |
 | 10 Packaging | Not started | |
 | Brain (new) | Done | SiYuan-style model, graph, notes, digest injected into agent prompts. |

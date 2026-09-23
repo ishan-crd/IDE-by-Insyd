@@ -1,0 +1,16 @@
+# insy team run examples/team.toml
+name = "login redirect"
+task = "Users land on /home instead of the page they came from after logging in. Fix it."
+
+[lead]
+agent = "claude"
+
+[[specialist]]
+agent = "codex"
+role = "implementer"
+prompt = "Fix the redirect: preserve the original URL through the login flow."
+
+[[specialist]]
+agent = "claude"
+role = "tests"
+prompt = "Add a test that fails before the fix and passes after it."

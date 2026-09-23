@@ -20,3 +20,4 @@ smol.workspace = true
 flume.workspace = true
 similar = "3"
 regex = "1"
+toml = "1"

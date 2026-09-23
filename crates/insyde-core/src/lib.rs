@@ -8,4 +8,5 @@ pub mod git;
 pub mod project;
 pub mod rpc;
 pub mod store;
+pub mod team;
 pub mod terminal;

@@ -160,6 +160,42 @@ impl Workspace {
                         })),
                 );
             }
+            let hover = t.hover;
+            menu = menu.child(
+                div()
+                    .id("am-team")
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .h(px(32.))
+                    .px(px(8.))
+                    .rounded(metrics::RADIUS)
+                    .cursor_pointer()
+                    .hover(move |s| s.bg(hover))
+                    .child(div().w(px(12.)))
+                    .child(
+                        div()
+                            .size(px(20.))
+                            .rounded_full()
+                            .bg(t.hover_2)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_size(px(10.))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(t.ink_2)
+                            .child("T"),
+                    )
+                    .child(div().flex_1().child("Team…"))
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child("lead + specialists"),
+                    )
+                    .on_click(cx.listener(|this, _, w, cx| this.open_team_form(w, cx))),
+            );
             menu = menu.child(
                 div()
                     .flex()
@@ -178,6 +214,12 @@ impl Workspace {
             root = root
                 .child(scrim("menu-scrim", cx, |this| this.menu_open = false))
                 .child(menu);
+        }
+
+        if self.team_form.is_some() {
+            root = root
+                .child(scrim("team-scrim", cx, |this| this.team_form = None))
+                .child(self.render_team_form(t, cx));
         }
 
         if self.handoff.is_some() {

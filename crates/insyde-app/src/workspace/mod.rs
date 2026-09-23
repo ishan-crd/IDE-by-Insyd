@@ -8,6 +8,7 @@ mod overlays;
 mod right;
 mod rpc;
 mod side;
+mod team;
 mod top;
 
 use crate::brain_view::{BrainEvent, BrainHandle, BrainView};
@@ -69,6 +70,7 @@ pub enum BottomTab {
     Terminals,
     Logs,
     Problems,
+    Team,
 }
 
 pub enum TabView {
@@ -233,6 +235,10 @@ pub struct Workspace {
     pub window_size: (f32, f32),
     pending_default_tab: bool,
     pub ahead_behind: HashMap<PathBuf, (u32, u32)>,
+    pub team: Option<team::TeamState>,
+    pub team_form: Option<team::TeamForm>,
+    /// Set while a team is opening worktrees, so they don't get a default chat.
+    suppress_default_tab: bool,
     _subs: Vec<Subscription>,
 }
 
@@ -307,6 +313,9 @@ impl Workspace {
             window_size: (1512., 982.),
             pending_default_tab: false,
             ahead_behind: HashMap::new(),
+            team: None,
+            team_form: None,
+            suppress_default_tab: false,
             _subs: subs,
         };
         for i in 0..this.projects.len() {
@@ -665,7 +674,7 @@ impl Workspace {
                     restored = true;
                 }
             }
-            if !restored {
+            if !restored && !self.suppress_default_tab {
                 self.open_chat(DEFAULT_AGENT, None, None, window, cx);
             }
             if let Some(ws) = self.wts.get_mut(&path) {

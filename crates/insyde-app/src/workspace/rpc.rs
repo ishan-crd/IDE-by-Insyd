@@ -286,7 +286,7 @@ impl Workspace {
         Ok(row.name)
     }
 
-    fn rpc_team_run(&mut self, call: Call, _window: &mut Window, _cx: &mut Context<Self>) {
-        call.err("teams are not available yet");
+    fn rpc_team_run(&mut self, call: Call, window: &mut Window, cx: &mut Context<Self>) {
+        self.rpc_team_run_impl(call, window, cx);
     }
 }

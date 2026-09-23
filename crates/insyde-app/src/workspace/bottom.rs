@@ -41,10 +41,11 @@ impl Workspace {
             BottomTab::Terminals => 0,
             BottomTab::Logs => 1,
             BottomTab::Problems => 2,
+            BottomTab::Team => 3,
         };
         let seg = ui::segmented(
             "bottom-seg",
-            &["Terminals", "Logs", "Problems"],
+            &["Terminals", "Logs", "Problems", "Team"],
             ix,
             t,
             false,
@@ -53,8 +54,12 @@ impl Workspace {
                 let e = cx.entity().downgrade();
                 move |i, _, cx| {
                     let _ = e.update(cx, |this, cx| {
-                        this.bottom_tab =
-                            [BottomTab::Terminals, BottomTab::Logs, BottomTab::Problems][i];
+                        this.bottom_tab = [
+                            BottomTab::Terminals,
+                            BottomTab::Logs,
+                            BottomTab::Problems,
+                            BottomTab::Team,
+                        ][i];
                         cx.notify();
                     });
                 }
@@ -165,6 +170,7 @@ impl Workspace {
                     .child(col)
                     .into_any_element()
             }
+            BottomTab::Team => self.render_team_tab(t, cx),
             BottomTab::Problems => {
                 let mut col = div().flex().flex_col().px(px(14.)).py(px(8.)).gap(px(2.));
                 for (src, line) in &problems {
