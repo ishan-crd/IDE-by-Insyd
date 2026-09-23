@@ -73,6 +73,16 @@ pub fn sync_component_theme(cx: &mut App) {
     k.link = t.accent;
     k.selection = t.sel_chip;
     k.scrollbar_thumb = t.scroll_thumb;
+    // The code editor paints its own surface; without these it falls back to a
+    // translucent input fill. Match the Diff view's solid sheet instead.
+    let mut hl = (*c.highlight_theme).clone();
+    hl.style.editor_background = Some(t.panel_2);
+    hl.style.editor_gutter_background = Some(t.panel_2);
+    hl.style.editor_foreground = Some(t.ink);
+    hl.style.editor_active_line = Some(t.hover);
+    hl.style.editor_line_number = Some(t.ink_faint);
+    hl.style.editor_active_line_number = Some(t.ink_2);
+    c.highlight_theme = std::sync::Arc::new(hl);
     if t.glass {
         // The component root paints this under everything; keep it clear so
         // the blurred desktop shows through the chrome.

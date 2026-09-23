@@ -52,7 +52,8 @@ impl FileEditor {
                     tab_size: settings.editor_tab_size.clamp(1, 16) as usize,
                     hard_tabs: false,
                 })
-                .folding(true)
+                // No fold column: it widened the gutter in a narrow side panel.
+                .folding(false)
                 .searchable(true)
         });
         let subs = vec![
@@ -223,6 +224,7 @@ impl Render for FileEditor {
                     .child(
                         Editor::new(&self.state)
                             .appearance(false)
+                            .text_size(metrics::TEXT_MONO)
                             .readonly(self.readonly)
                             .h(gpui::relative(1.)),
                     ),

@@ -1,4 +1,4 @@
-//! Right panel: Checks (PR + CI), Diff (changed files + patch), Files (editor).
+//! Right panel: Checks (PR + CI), Diff (changed files + patch), Editor (open file).
 
 use super::{RightTab, Workspace};
 use crate::ui::{self, icon};
@@ -18,11 +18,11 @@ impl Workspace {
         let ix = match self.right_tab {
             RightTab::Checks => 0,
             RightTab::Diff => 1,
-            RightTab::Files => 2,
+            RightTab::Editor => 2,
         };
         let seg = ui::segmented(
             "right-seg",
-            &["Checks", "Diff", "Files"],
+            &["Checks", "Diff", "Editor"],
             ix,
             t,
             true,
@@ -31,7 +31,7 @@ impl Workspace {
                 let e = cx.entity().downgrade();
                 move |i, _, cx| {
                     let _ = e.update(cx, |this, cx| {
-                        this.right_tab = [RightTab::Checks, RightTab::Diff, RightTab::Files][i];
+                        this.right_tab = [RightTab::Checks, RightTab::Diff, RightTab::Editor][i];
                         if i != 2 {
                             this.refresh_wt_details(cx);
                         }
@@ -43,7 +43,7 @@ impl Workspace {
         let body = match self.right_tab {
             RightTab::Checks => self.render_checks(t, cx),
             RightTab::Diff => self.render_diff(t, cx),
-            RightTab::Files => self.render_viewer(t),
+            RightTab::Editor => self.render_viewer(t),
         };
         div()
             .flex()

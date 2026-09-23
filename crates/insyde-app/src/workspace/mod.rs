@@ -64,7 +64,7 @@ pub enum SideTab {
 pub enum RightTab {
     Checks,
     Diff,
-    Files,
+    Editor,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BottomTab {
@@ -1441,7 +1441,7 @@ impl Workspace {
                     return; // save failed: keep the edits open (the error was shown)
                 }
             } else if dirty {
-                self.right_tab = RightTab::Files;
+                self.right_tab = RightTab::Editor;
                 if !same {
                     self.toast(
                         format!("Unsaved changes in {cur}: save or revert first"),
@@ -1467,7 +1467,7 @@ impl Workspace {
         if let Some(ws) = self.wt_mut() {
             ws.editor = Some(ed);
         }
-        self.right_tab = RightTab::Files;
+        self.right_tab = RightTab::Editor;
         self.prefs.show_right = true;
         // Editing needs room: widen the panel once.
         if self.prefs.right_w < 520. {
