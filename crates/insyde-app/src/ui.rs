@@ -153,7 +153,6 @@ pub fn tint_color(tint: Tint, t: &Theme) -> Hsla {
     }
 }
 
-/// Circular agent monogram ("CC", "Cx"…).
 /// The agent's own logo, when it has a public one (drawn one-color on its badge).
 fn agent_logo(key: &str) -> Option<&'static str> {
     Some(match key {

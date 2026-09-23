@@ -9,6 +9,7 @@ mod search;
 mod settings_view;
 mod terminal_view;
 mod ui;
+mod web_access;
 mod workspace;
 
 use gpui::prelude::*;
@@ -89,6 +90,8 @@ fn main() {
         .init();
     insyde_core::agents::warm_path();
     let store = Store::open_default().expect("open InsyDE database");
+    // Settings › Web access: serve the browser client while the app runs.
+    web_access::sync(&store);
     gpui_platform::application()
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {

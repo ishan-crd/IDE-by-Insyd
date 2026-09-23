@@ -30,13 +30,14 @@ enum Cat {
     Terminal,
     Editor,
     Alerts,
+    Web,
     Data,
     Keys,
     About,
 }
 
 impl Cat {
-    const ALL: [Cat; 10] = [
+    const ALL: [Cat; 11] = [
         Cat::Look,
         Cat::Agents,
         Cat::Brain,
@@ -44,6 +45,7 @@ impl Cat {
         Cat::Terminal,
         Cat::Editor,
         Cat::Alerts,
+        Cat::Web,
         Cat::Data,
         Cat::Keys,
         Cat::About,
@@ -57,6 +59,7 @@ impl Cat {
             Cat::Terminal => "Terminal",
             Cat::Editor => "Editor",
             Cat::Alerts => "Notifications",
+            Cat::Web => "Web access",
             Cat::Data => "Privacy & data",
             Cat::Keys => "Shortcuts",
             Cat::About => "About",
@@ -71,6 +74,9 @@ impl Cat {
             Cat::Terminal => "Font, scrollback, shell and keyboard behavior.",
             Cat::Editor => "The file editor in the right panel.",
             Cat::Alerts => "When InsyDE should tap you on the shoulder.",
+            Cat::Web => {
+                "Use this Mac's agents, changes and terminals from a browser on your phone or any computer."
+            }
             Cat::Data => "What is stored on this Mac, and how to clear it.",
             Cat::Keys => "Keyboard shortcuts.",
             Cat::About => "Version, files and links.",
@@ -86,6 +92,7 @@ const TEXT_KEYS: &[&str] = &[
     "copy_into_worktrees",
     "term_font",
     "shell",
+    "web_port",
 ];
 
 fn text_value(s: &Settings, key: &str) -> String {
@@ -96,6 +103,7 @@ fn text_value(s: &Settings, key: &str) -> String {
         "copy_into_worktrees" => s.copy_into_worktrees.clone(),
         "term_font" => s.term_font.clone(),
         "shell" => s.shell.clone(),
+        "web_port" => s.web_port.to_string(),
         k => k
             .strip_prefix("cmd:")
             .and_then(|a| s.agent_commands.get(a).cloned())
@@ -111,6 +119,13 @@ fn set_text(s: &mut Settings, key: &str, v: String) {
         "copy_into_worktrees" => s.copy_into_worktrees = v,
         "term_font" => s.term_font = v,
         "shell" => s.shell = v,
+        "web_port" => {
+            if let Ok(p) = v.trim().parse::<u16>()
+                && p >= 1024
+            {
+                s.web_port = p;
+            }
+        }
         k => {
             if let Some(agent) = k.strip_prefix("cmd:") {
                 if v.trim().is_empty() {
@@ -163,6 +178,7 @@ impl SettingsView {
                 "worktree_root" => "../.insyde-worktrees/{repo}  (default)".to_string(),
                 "setup_command" => "e.g. pnpm install".to_string(),
                 "shell" => "$SHELL (default)".to_string(),
+                "web_port" => "7788".to_string(),
                 k => k
                     .strip_prefix("cmd:")
                     .and_then(|a| AGENTS.iter().find(|x| x.key == a))
@@ -201,6 +217,23 @@ impl SettingsView {
             }
         }));
         search.update(cx, |st, cx| st.focus(window, cx));
+        // Keep the Web access page live (tunnel link, connected browsers).
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs(1))
+                    .await;
+                let alive = this.update(cx, |this, cx| {
+                    if this.cat == Cat::Web {
+                        cx.notify();
+                    }
+                });
+                if alive.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
         Self {
             cat: Cat::Look,
             search,
@@ -214,6 +247,8 @@ impl SettingsView {
     }
 
     fn changed(&mut self, cx: &mut Context<Self>) {
+        // Starts, restarts or stops the web server if its settings moved.
+        crate::web_access::sync(&self.store);
         cx.refresh_windows();
         cx.notify();
     }
@@ -936,6 +971,47 @@ impl SettingsView {
         );
 
         // Privacy & data
+        // Web access
+        tile!(
+            Cat::Web,
+            "Web access",
+            "Serve the InsyDE web client from this Mac while the app is open. Browsers pair once with a private link.",
+            s.web_access != d.web_access,
+            Some(|s: &mut Settings| s.web_access = Settings::default().web_access),
+            self.toggle("web-access", s.web_access, |s, v| s.web_access = v, t, cx)
+        );
+        tile!(
+            Cat::Web,
+            "Who can connect",
+            "This Mac only, or any device on your network and your Tailscale tailnet.",
+            s.web_network != d.web_network,
+            Some(|s: &mut Settings| s.web_network = Settings::default().web_network),
+            self.choice(
+                "web-net",
+                &[("This Mac only", false), ("Network & Tailscale", true)],
+                s.web_network,
+                |s, v| s.web_network = v,
+                t,
+                cx
+            )
+        );
+        tile!(
+            Cat::Web,
+            "Public link",
+            "A temporary https address through Cloudflare, for when you are away from your network. Needs cloudflared.",
+            s.web_tunnel != d.web_tunnel,
+            Some(|s: &mut Settings| s.web_tunnel = Settings::default().web_tunnel),
+            self.toggle("web-tunnel", s.web_tunnel, |s, v| s.web_tunnel = v, t, cx)
+        );
+        tile!(
+            Cat::Web,
+            "Port",
+            "The local port the web client listens on.",
+            s.web_port != d.web_port,
+            Some(|s: &mut Settings| s.web_port = Settings::default().web_port),
+            self.text("web_port")
+        );
+
         tile!(
             Cat::Data,
             "Keep conversation history",
@@ -1163,6 +1239,205 @@ impl SettingsView {
         col.into_any_element()
     }
 
+    /// Pairing panel on the Web access page: QR code, links, connected browsers.
+    fn render_web(&self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let panel = div()
+            .w(px(1024.))
+            .p(px(16.))
+            .flex()
+            .gap(px(20.))
+            .bg(t.panel)
+            .border_1()
+            .border_color(t.line)
+            .rounded(metrics::RADIUS_LG);
+        let Some(snap) = crate::web_access::snapshot() else {
+            return panel
+                .items_center()
+                .child(ui::icon("popout", 16., t.ink_3))
+                .child(
+                    div()
+                        .flex_1()
+                        .text_size(metrics::TEXT_SM)
+                        .text_color(t.ink_3)
+                        .child("Turn on Web access to open InsyDE from a browser. Your agents, changes and terminals keep running here; the browser is a window onto them."),
+                )
+                .into_any_element();
+        };
+        if let Some(e) = snap.error {
+            return panel
+                .items_center()
+                .child(ui::icon("cross", 14., t.err))
+                .child(
+                    div()
+                        .flex_1()
+                        .text_size(metrics::TEXT_SM)
+                        .text_color(t.err)
+                        .child(e),
+                )
+                .into_any_element();
+        }
+        // The QR code opens the most reachable link (public, then network, then local).
+        let best = snap
+            .links
+            .iter()
+            .rev()
+            .find(|l| !l.local)
+            .or(snap.links.first())
+            .cloned();
+        let qr = best.as_ref().and_then(|l| insyde_core::web::qr(&l.url));
+        let mut left = div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(px(8.))
+            .w(px(200.))
+            .flex_none();
+        if let Some((w, dark)) = qr {
+            let module = (184. / (w as f32 + 4.)).floor().max(2.);
+            let mut code = div()
+                .p(px(module * 2.))
+                .bg(t.palette.white)
+                .rounded(px(8.))
+                .flex()
+                .flex_col();
+            for y in 0..w {
+                // One element per run of dark modules keeps the element count low.
+                let mut row = div().flex().h(px(module));
+                let mut x = 0;
+                while x < w {
+                    let on = dark[y * w + x];
+                    let start = x;
+                    while x < w && dark[y * w + x] == on {
+                        x += 1;
+                    }
+                    let run = div().w(px(module * (x - start) as f32)).h_full();
+                    row = row.child(if on { run.bg(gpui::black()) } else { run });
+                }
+                code = code.child(row);
+            }
+            left = left.child(code);
+        }
+        left = left.child(
+            div()
+                .text_size(metrics::TEXT_XS)
+                .text_color(t.ink_3)
+                .text_center()
+                .child(match &best {
+                    Some(l) if !l.local => format!("Scan with your phone ({})", l.label),
+                    _ => "Choose Network & Tailscale or Public link to pair a phone".into(),
+                }),
+        );
+
+        let mut right = div().flex_1().min_w_0().flex().flex_col().gap(px(8.));
+        right = right.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .child(ui::dot(t.ok, 7.))
+                .child(
+                    div()
+                        .text_size(metrics::TEXT)
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(t.ink)
+                        .child("Web access is on"),
+                )
+                .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(
+                    match snap.clients {
+                        0 => "No browsers connected".to_string(),
+                        1 => "1 browser connected".to_string(),
+                        n => format!("{n} browsers connected"),
+                    },
+                )),
+        );
+        for (i, l) in snap.links.iter().enumerate() {
+            let url = l.url.clone();
+            let url2 = l.url.clone();
+            // Show the address without the pairing token.
+            let shown = l.url.split("/#").next().unwrap_or(&l.url).to_string();
+            right = right.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .h(px(34.))
+                    .px(px(10.))
+                    .rounded(metrics::RADIUS)
+                    .bg(t.panel_2)
+                    .border_1()
+                    .border_color(t.line_soft)
+                    .child(
+                        div()
+                            .w(px(110.))
+                            .text_size(metrics::TEXT_SM)
+                            .text_color(t.ink_3)
+                            .child(l.label),
+                    )
+                    .child(
+                        ui::trunc(shown)
+                            .flex_1()
+                            .font_family(metrics::MONO_FONT)
+                            .text_size(metrics::TEXT_SM)
+                            .text_color(t.ink),
+                    )
+                    .child(
+                        ui::small_button(
+                            SharedString::from(format!("web-copy-{i}")),
+                            "Copy link",
+                            t,
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(url.clone()));
+                            this.note = Some("Pairing link copied".into());
+                            cx.notify();
+                        })),
+                    )
+                    .child(
+                        ui::small_button(SharedString::from(format!("web-open-{i}")), "Open", t)
+                            .on_click(cx.listener(move |_, _, _, cx| cx.open_url(&url2))),
+                    ),
+            );
+        }
+        if snap.tunnel_pending {
+            right = right.child(
+                div()
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child("Creating a public link…"),
+            );
+        }
+        if let Some(e) = snap.tunnel_error {
+            right = right.child(
+                div()
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.warn)
+                    .child(e),
+            );
+        }
+        right = right.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.))
+                .pt(px(4.))
+                .child(
+                    ui::small_button("web-new-link", "New link", t).on_click(cx.listener(|this, _, _, cx| {
+                        crate::web_access::new_link();
+                        this.note = Some("New pairing link: other browsers were signed out".into());
+                        cx.notify();
+                    })),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_size(metrics::TEXT_XS)
+                        .text_color(t.ink_3)
+                        .child("A pairing link works like a key to this Mac. Share it only with your own devices; make a new one to sign every browser out."),
+                ),
+        );
+        panel.child(left).child(right).into_any_element()
+    }
+
     fn render_about(&self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let row = |label: &'static str, value: String| {
             div()
@@ -1261,7 +1536,7 @@ impl Render for SettingsView {
         let total_changed = tiles.iter().filter(|x| x.changed).count();
 
         // Category pills.
-        let mut pills = div().flex().flex_wrap().gap(px(6.));
+        let mut pills = div().flex().flex_wrap().gap(px(4.));
         for c in Cat::ALL {
             let on = c == self.cat && query.is_empty();
             let n = changed_by_cat(c);
@@ -1273,7 +1548,7 @@ impl Render for SettingsView {
                     .items_center()
                     .gap(px(6.))
                     .h(px(30.))
-                    .px(px(14.))
+                    .px(px(10.))
                     .rounded(px(15.))
                     .cursor_pointer()
                     .text_size(metrics::TEXT_SM)
@@ -1365,6 +1640,9 @@ impl Render for SettingsView {
                     }),
             );
         } else {
+            if !searching && self.cat == Cat::Web {
+                body = body.child(self.render_web(&t, cx));
+            }
             let mut last: Option<Cat> = None;
             let mut grid = div().flex().flex_wrap().gap(px(12.));
             for tile in visible {
