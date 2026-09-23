@@ -21,3 +21,9 @@ flume.workspace = true
 similar = "3"
 regex = "1"
 toml = "1"
+# Web access: WebSocket handshake hash and pairing QR codes.
+sha1_smol = "1"
+qrcode = { version = "0.14", default-features = false }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

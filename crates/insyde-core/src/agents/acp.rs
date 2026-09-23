@@ -68,6 +68,14 @@ impl Policy {
             Policy::FullAccess => "Full access",
         }
     }
+    /// The policy new sessions start with, from settings.
+    pub fn from_setting(a: crate::settings::Approval) -> Self {
+        match a {
+            crate::settings::Approval::Ask => Policy::Ask,
+            crate::settings::Approval::AcceptEdits => Policy::AcceptEdits,
+            crate::settings::Approval::FullAccess => Policy::FullAccess,
+        }
+    }
     pub fn next(self) -> Self {
         match self {
             Policy::Ask => Policy::AcceptEdits,

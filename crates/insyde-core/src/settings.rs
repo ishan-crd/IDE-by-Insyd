@@ -109,6 +109,15 @@ pub struct Settings {
     // Privacy & data
     pub store_transcripts: bool,
     pub control_socket: bool,
+
+    // Web access
+    /// Serve the InsyDE web client so a browser can drive this machine.
+    pub web_access: bool,
+    pub web_port: u16,
+    /// Listen on every network interface (LAN, Tailscale) instead of this machine only.
+    pub web_network: bool,
+    /// Also publish a temporary public https link through `cloudflared`, if installed.
+    pub web_tunnel: bool,
 }
 
 impl Default for Settings {
@@ -154,6 +163,10 @@ impl Default for Settings {
             notify_only_background: true,
             store_transcripts: true,
             control_socket: true,
+            web_access: false,
+            web_port: 7788,
+            web_network: false,
+            web_tunnel: false,
         }
     }
 }

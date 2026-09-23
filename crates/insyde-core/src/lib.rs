@@ -12,3 +12,4 @@ pub mod settings;
 pub mod store;
 pub mod team;
 pub mod terminal;
+pub mod web;

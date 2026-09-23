@@ -94,6 +94,16 @@ impl Comment {
     }
 }
 
+/// A session as listed in the web client's sidebar.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ThreadRow {
+    pub id: i64,
+    pub agent: String,
+    pub title: String,
+    pub updated: i64,
+    pub created: i64,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SessionRow {
     pub id: i64,
@@ -267,6 +277,48 @@ impl Store {
         })
         .map(|it| it.filter_map(|x| x.ok()).collect())
         .unwrap_or_default()
+    }
+
+    /// Open sessions of a worktree, newest activity first (the web thread list).
+    pub fn threads(&self, worktree: &Path, limit: usize) -> Vec<ThreadRow> {
+        let c = self.conn.lock();
+        let Ok(mut st) = c.prepare(
+            "SELECT id,agent,title,updated,created FROM sessions WHERE worktree=?1 AND closed=0 ORDER BY updated DESC LIMIT ?2",
+        ) else {
+            return vec![];
+        };
+        st.query_map(params![worktree.to_string_lossy(), limit as i64], |r| {
+            Ok(ThreadRow {
+                id: r.get(0)?,
+                agent: r.get(1)?,
+                title: r.get(2)?,
+                updated: r.get(3)?,
+                created: r.get(4)?,
+            })
+        })
+        .map(|it| it.filter_map(|x| x.ok()).collect())
+        .unwrap_or_default()
+    }
+
+    /// One session by id, open or closed.
+    pub fn session(&self, id: i64) -> Option<SessionRow> {
+        let c = self.conn.lock();
+        c.query_row(
+            "SELECT id,worktree,agent,title,acp_id,tokens,cost FROM sessions WHERE id=?1",
+            params![id],
+            |r| {
+                Ok(SessionRow {
+                    id: r.get(0)?,
+                    worktree: PathBuf::from(r.get::<_, String>(1)?),
+                    agent: r.get(2)?,
+                    title: r.get(3)?,
+                    acp_id: r.get(4)?,
+                    tokens: r.get(5)?,
+                    cost: r.get(6)?,
+                })
+            },
+        )
+        .ok()
     }
 
     /// Delete closed sessions and their transcripts. Returns how many were removed.
