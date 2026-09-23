@@ -509,15 +509,15 @@ impl SettingsView {
         tile!(
             Cat::Look,
             "Glass tint",
-            "How much color covers the blur. Lower is clearer, higher is easier to read.",
+            "How dark the glass is. Higher stays readable on light wallpapers; lower lets more of the desktop show through.",
             s.glass_tint != d.glass_tint,
             Some(|s: &mut Settings| s.glass_tint = Settings::default().glass_tint),
             self.stepper(
                 "glass-tint",
                 s.glass_tint as f32,
-                10.,
+                5.,
                 30.,
-                90.,
+                95.,
                 "%",
                 |s, v| s.glass_tint = v as u32,
                 t,

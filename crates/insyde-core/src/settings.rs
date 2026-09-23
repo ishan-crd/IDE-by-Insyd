@@ -134,7 +134,7 @@ impl Default for Settings {
             reduce_motion: false,
             chat_text_size: 13.,
             glass: false,
-            glass_tint: 60,
+            glass_tint: 85,
             default_agent: "claude".into(),
             open_agents_as: OpenAs::Chat,
             approval: Approval::AcceptEdits,
