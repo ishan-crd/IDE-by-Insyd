@@ -487,13 +487,12 @@ impl Render for TerminalView {
                 }),
             )
             .on_mouse_move(cx.listener(|this, e: &gpui::MouseMoveEvent, _, cx| {
-                if this.selecting && e.dragging() {
-                    if let Some(s) = &this.session {
+                if this.selecting && e.dragging()
+                    && let Some(s) = &this.session {
                         let (c, r) = this.cell_at(e.position);
                         s.select_update(c, r);
                         cx.notify();
                     }
-                }
             }))
             .on_mouse_up(
                 MouseButton::Left,
