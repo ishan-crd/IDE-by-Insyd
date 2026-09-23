@@ -26,7 +26,11 @@ pub struct PopOut {
 impl Render for PopOut {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme().clone();
-        div().size_full().bg(t.panel_2).child(self.view.clone())
+        div()
+            .relative()
+            .size_full()
+            .bg(t.panel_2)
+            .child(self.view.clone())
     }
 }
 
@@ -85,7 +89,7 @@ fn main() {
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
             tracing::debug!("startup: app running after {:?}", t0.elapsed());
-        gpui_component::init(cx);
+            gpui_component::init(cx);
             insyde_theme::init(cx, mode);
             sync_component_theme(cx);
             cx.bind_keys([
@@ -107,7 +111,7 @@ fn main() {
             })
             .detach();
             tracing::debug!("startup: init done after {:?}", t0.elapsed());
-        let bounds = Bounds::centered(None, size(px(1512.), px(982.)), cx);
+            let bounds = Bounds::centered(None, size(px(1512.), px(982.)), cx);
             let opts = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitlebarOptions {
@@ -127,7 +131,7 @@ fn main() {
                 cx.new(|cx| gpui_component::Root::new(ws, window, cx))
             })
             .expect("open window");
-        tracing::debug!("startup: window opened after {:?}", t0.elapsed());
+            tracing::debug!("startup: window opened after {:?}", t0.elapsed());
             cx.activate(true);
         });
 }

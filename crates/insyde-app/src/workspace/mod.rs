@@ -1502,7 +1502,10 @@ impl Workspace {
                                     (a, r)
                                 }
                             });
-                            h.subs[1] = format!("{files} file{} in the worktree diff · +{a} −{r}", if files == 1 { "" } else { "s" });
+                            h.subs[1] = format!(
+                                "{files} file{} in the worktree diff · +{a} −{r}",
+                                if files == 1 { "" } else { "s" }
+                            );
                         }
                         h.diff = diff;
                     }

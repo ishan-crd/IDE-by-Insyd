@@ -261,7 +261,12 @@ static NODE_DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new
 
 /// Start the login-shell probe for `node` on a background thread (call at startup).
 pub fn warm_path() {
-    std::thread::Builder::new().name("path-probe".into()).spawn(|| { login_shell_node_dir(); }).ok();
+    std::thread::Builder::new()
+        .name("path-probe".into())
+        .spawn(|| {
+            login_shell_node_dir();
+        })
+        .ok();
 }
 
 /// Blocking variant for agent threads, which need the full PATH before spawning.
@@ -271,16 +276,17 @@ pub fn augmented_path_blocking() -> String {
 }
 
 fn login_shell_node_dir() -> Option<PathBuf> {
-    NODE_DIR.get_or_init(|| {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
-        let out = std::process::Command::new(shell)
-            .args(["-lic", "command -v node"])
-            .stdin(std::process::Stdio::null())
-            .output()
-            .ok()?;
-        let s = String::from_utf8_lossy(&out.stdout);
-        let line = s.lines().rev().find(|l| l.trim_start().starts_with('/'))?;
-        PathBuf::from(line.trim()).parent().map(PathBuf::from)
-    })
-    .clone()
+    NODE_DIR
+        .get_or_init(|| {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+            let out = std::process::Command::new(shell)
+                .args(["-lic", "command -v node"])
+                .stdin(std::process::Stdio::null())
+                .output()
+                .ok()?;
+            let s = String::from_utf8_lossy(&out.stdout);
+            let line = s.lines().rev().find(|l| l.trim_start().starts_with('/'))?;
+            PathBuf::from(line.trim()).parent().map(PathBuf::from)
+        })
+        .clone()
 }

@@ -216,6 +216,49 @@ impl TerminalSession {
         self.term.lock().scroll_display(Scroll::Bottom);
     }
 
+    /// Begin a mouse selection at a visible cell. `clicks`: 1 = chars, 2 = word, 3 = line.
+    pub fn select_start(&self, col: usize, row: usize, clicks: usize) {
+        use alacritty_terminal::index::{Point, Side};
+        use alacritty_terminal::selection::{Selection, SelectionType};
+        let mut term = self.term.lock();
+        let offset = term.grid().display_offset() as i32;
+        let point = Point::new(
+            Line(row as i32 - offset),
+            Column(col.min(term.columns().saturating_sub(1))),
+        );
+        let ty = match clicks {
+            2 => SelectionType::Semantic,
+            3 => SelectionType::Lines,
+            _ => SelectionType::Simple,
+        };
+        term.selection = Some(Selection::new(ty, point, Side::Left));
+    }
+
+    pub fn select_update(&self, col: usize, row: usize) {
+        use alacritty_terminal::index::{Point, Side};
+        let mut term = self.term.lock();
+        let offset = term.grid().display_offset() as i32;
+        let rows = term.screen_lines() as i32;
+        let point = Point::new(
+            Line((row as i32).min(rows - 1) - offset),
+            Column(col.min(term.columns().saturating_sub(1))),
+        );
+        if let Some(sel) = term.selection.as_mut() {
+            sel.update(point, Side::Right);
+        }
+    }
+
+    pub fn clear_selection(&self) {
+        self.term.lock().selection = None;
+    }
+
+    pub fn selected_text(&self) -> Option<String> {
+        self.term
+            .lock()
+            .selection_to_string()
+            .filter(|s| !s.is_empty())
+    }
+
     pub fn take_clipboard(&self) -> Option<String> {
         self.clipboard.lock().take()
     }

@@ -329,7 +329,7 @@ impl Workspace {
                             )
                         }),
                 )
-                .child(div().flex_1().min_h_0().child(view));
+                .child(div().relative().flex_1().min_h_0().child(view));
             if i + 1 < n {
                 pane = pane.child(
                     div()

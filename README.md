@@ -4,7 +4,6 @@ A native, GPU-rendered IDE for AI coding agents, written in Rust on GPUI (Zed's 
 Every task gets its own git worktree, terminal and agent sessions; a **Project Brain** gives every
 agent persistent context about the repository's main branch.
 
-![design](design/InsyDE.dc.html)
 
 ## What works today
 

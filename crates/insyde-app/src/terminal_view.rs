@@ -36,6 +36,9 @@ pub struct TerminalView {
     pub program: Option<(String, Vec<String>)>,
     pub cwd: PathBuf,
     pub last_activity: std::time::Instant,
+    /// Text-area origin and cell size from the last paint, for mouse → cell mapping.
+    geom: std::rc::Rc<std::cell::Cell<(gpui::Point<Pixels>, Pixels, Pixels)>>,
+    selecting: bool,
 }
 
 impl EventEmitter<TerminalEvent> for TerminalView {}
@@ -133,6 +136,8 @@ impl TerminalView {
             program,
             cwd,
             last_activity: std::time::Instant::now() - std::time::Duration::from_secs(3600),
+            geom: Default::default(),
+            selecting: false,
         }
     }
 
@@ -171,7 +176,7 @@ impl TerminalView {
                     }
                 }
                 "c" => {
-                    if let Some(text) = sess.take_clipboard() {
+                    if let Some(text) = sess.selected_text().or_else(|| sess.take_clipboard()) {
                         cx.write_to_clipboard(ClipboardItem::new_string(text));
                     }
                 }
@@ -193,10 +198,18 @@ impl TerminalView {
             m.shift,
             app_cursor,
         ) {
+            sess.clear_selection();
             sess.scroll_to_bottom();
             sess.write(bytes);
             cx.stop_propagation();
         }
+    }
+
+    fn cell_at(&self, p: gpui::Point<Pixels>) -> (usize, usize) {
+        let (origin, cw, lh) = self.geom.get();
+        let x = f32::from(p.x - origin.x).max(0.) / f32::from(cw).max(1.);
+        let y = f32::from(p.y - origin.y).max(0.) / f32::from(lh).max(1.);
+        (x as usize, y as usize)
     }
 
     fn on_scroll(&mut self, ev: &ScrollWheelEvent, _w: &mut Window, cx: &mut Context<Self>) {
@@ -451,7 +464,10 @@ impl Render for TerminalView {
             .id("terminal")
             .key_context("Terminal")
             .track_focus(&self.focus)
-            .size_full()
+            // Fill the (relative) host exactly: a percentage height inside a flex
+            // item doesn't resolve, which left the hitbox shorter than the text.
+            .absolute()
+            .inset_0()
             .overflow_hidden()
             .px(px(12.))
             .py(px(8.))
@@ -460,8 +476,35 @@ impl Render for TerminalView {
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, w, cx| {
+                cx.listener(|this, e: &gpui::MouseDownEvent, w, cx| {
                     this.focus.focus(w, cx);
+                    if let Some(s) = &this.session {
+                        let (c, r) = this.cell_at(e.position);
+                        s.select_start(c, r, e.click_count);
+                        this.selecting = true;
+                    }
+                    cx.notify();
+                }),
+            )
+            .on_mouse_move(cx.listener(|this, e: &gpui::MouseMoveEvent, _, cx| {
+                if this.selecting && e.dragging() {
+                    if let Some(s) = &this.session {
+                        let (c, r) = this.cell_at(e.position);
+                        s.select_update(c, r);
+                        cx.notify();
+                    }
+                }
+            }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    this.selecting = false;
+                    // A plain click leaves an empty selection; drop it.
+                    if let Some(s) = &this.session
+                        && s.selected_text().is_none()
+                    {
+                        s.clear_selection();
+                    }
                     cx.notify();
                 }),
             );
@@ -476,6 +519,7 @@ impl Render for TerminalView {
         let font_size = px(self.font_size);
         let line_h = px((self.font_size * 1.7).round());
         let mono = font(metrics::MONO_FONT);
+        let geom = self.geom.clone();
         base.child(
             canvas(
                 move |bounds, window, cx| {
@@ -486,6 +530,7 @@ impl Render for TerminalView {
                         .advance(fid, font_size, 'm')
                         .map(|s| s.width)
                         .unwrap_or(px(7.));
+                    geom.set((bounds.origin, cell_w, line_h));
                     let cols = ((bounds.size.width / cell_w).floor() as u16).max(2);
                     let rows = ((bounds.size.height / line_h).floor() as u16).max(1);
                     sess.resize(Size {
@@ -499,6 +544,8 @@ impl Render for TerminalView {
                     let term = sess.term.lock();
                     let content = term.renderable_content();
                     let offset = content.display_offset as i32;
+                    let selection = content.selection;
+                    let sel_bg = t.sel_chip;
                     let mut rows_out: Vec<Row> = Vec::with_capacity(rows as usize);
                     let mut cur_line = i32::MIN;
                     for ind in content.display_iter {
@@ -529,7 +576,13 @@ impl Render for TerminalView {
                         if cell.flags.contains(CellFlags::DIM) {
                             fgc.a *= 0.6;
                         }
-                        if let Some(bgc) = color(&t, bg, false) {
+                        let selected = selection.is_some_and(|s| s.contains(ind.point));
+                        let bg_color = if selected {
+                            Some(sel_bg)
+                        } else {
+                            color(&t, bg, false)
+                        };
+                        if let Some(bgc) = bg_color {
                             match row.bgs.last_mut() {
                                 Some((_, end, c)) if *end == x && *c == bgc => *end = x + 1,
                                 _ => row.bgs.push((x, x + 1, bgc)),
