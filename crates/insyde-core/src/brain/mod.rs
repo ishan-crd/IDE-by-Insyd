@@ -10,6 +10,7 @@
 //! seeded with a compact digest ([`Brain::digest`]) sized to a token budget.
 
 pub mod index;
+pub mod layout;
 
 use anyhow::Result;
 use parking_lot::Mutex;

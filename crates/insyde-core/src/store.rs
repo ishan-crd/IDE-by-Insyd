@@ -48,7 +48,7 @@ pub struct ProjectRow {
     pub base: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SessionRow {
     pub id: i64,
     pub worktree: PathBuf,
@@ -153,6 +153,33 @@ impl Store {
              cost=COALESCE(?5,cost), updated=?6 WHERE id=?1",
             params![id, title, acp_id, tokens, cost, now()],
         );
+    }
+
+    /// Most recent sessions of a worktree, open or closed (session history).
+    pub fn recent_sessions(&self, worktree: &Path, limit: usize) -> Vec<SessionRow> {
+        let c = self.conn.lock();
+        let Ok(mut st) = c.prepare(
+            "SELECT id,worktree,agent,title,acp_id,tokens,cost FROM sessions WHERE worktree=?1 ORDER BY updated DESC LIMIT ?2",
+        ) else {
+            return vec![];
+        };
+        st.query_map(params![worktree.to_string_lossy(), limit as i64], |r| {
+            Ok(SessionRow {
+                id: r.get(0)?,
+                worktree: PathBuf::from(r.get::<_, String>(1)?),
+                agent: r.get(2)?,
+                title: r.get(3)?,
+                acp_id: r.get(4)?,
+                tokens: r.get(5)?,
+                cost: r.get(6)?,
+            })
+        })
+        .map(|it| it.filter_map(|x| x.ok()).collect())
+        .unwrap_or_default()
+    }
+
+    pub fn reopen_session(&self, id: i64) {
+        let _ = self.conn.lock().execute("UPDATE sessions SET closed=0 WHERE id=?1", params![id]);
     }
 
     pub fn close_session(&self, id: i64) {

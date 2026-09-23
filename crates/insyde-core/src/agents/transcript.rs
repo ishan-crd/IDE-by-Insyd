@@ -115,6 +115,11 @@ pub struct Transcript {
 }
 
 impl Transcript {
+    pub fn from_history(items: Vec<Item>) -> Self {
+        let persisted = items.len();
+        Self { items, persisted, ..Default::default() }
+    }
+
     pub fn touch(&mut self) {
         self.version = self.version.wrapping_add(1);
     }

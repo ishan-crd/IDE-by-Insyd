@@ -75,21 +75,22 @@ pub struct AcpSession {
 }
 
 impl AcpSession {
-    /// Start the agent. `resume` is the agent's own session id from a
-    /// previous run; `history` is our stored transcript for that session.
+    /// Start the agent process. `resume` is the agent's own session id from a
+    /// previous run; `transcript` may already hold that session's history
+    /// (loaded from the store), which is shown while the agent starts.
     pub fn start(
         cmd: Cmd,
         cwd: PathBuf,
         resume: Option<String>,
-        history: Vec<Item>,
+        transcript: Arc<Mutex<Transcript>>,
         persist: Option<(Store, i64)>,
         policy: Policy,
         notify: Notify,
     ) -> Self {
-        let mut t = Transcript::default();
-        t.persisted = history.len();
-        t.items = history;
-        let transcript = Arc::new(Mutex::new(t));
+        {
+            let mut t = transcript.lock();
+            t.persisted = t.persisted.max(t.items.len());
+        }
         let policy = Arc::new(Mutex::new(policy));
         let (tx, rx) = flume::unbounded();
         let ctx = Ctx { transcript: transcript.clone(), policy: policy.clone(), notify, cwd, persist, pending: Arc::new(Mutex::new(None)) };

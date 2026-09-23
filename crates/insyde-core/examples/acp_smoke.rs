@@ -8,7 +8,7 @@ fn main() {
     let prompt = args.next().unwrap_or_else(|| "Reply with exactly: pong".into());
     let spec = AgentSpec::by_key(&key).expect("agent key");
     let cwd = std::env::current_dir().unwrap();
-    let s = AcpSession::start(spec.acp.unwrap(), cwd, None, vec![], None, Policy::Ask, Arc::new(|| {}));
+    let s = AcpSession::start(spec.acp.unwrap(), cwd, None, Default::default(), None, Policy::Ask, Arc::new(|| {}));
     let t0 = std::time::Instant::now();
     while !s.transcript.lock().ready {
         if let Some(e) = s.transcript.lock().error.clone() { eprintln!("error: {e}"); return; }
