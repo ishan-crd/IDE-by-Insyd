@@ -1,4 +1,4 @@
-//! Right panel: Checks (PR + CI), Diff (changed files + patch), Files (viewer).
+//! Right panel: Checks (PR + CI), Diff (changed files + patch), Files (editor).
 
 use super::{RightTab, Workspace};
 use crate::ui::{self, icon};
@@ -454,39 +454,21 @@ impl Workspace {
     }
 
     fn render_viewer(&mut self, t: &Theme) -> AnyElement {
-        let Some((path, lines)) = self.wt().and_then(|w| w.viewer.clone()) else {
-            return div()
+        match self.wt().and_then(|w| w.editor.clone()) {
+            Some(ed) => div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .child(ed)
+                .into_any_element(),
+            None => div()
                 .p(px(14.))
                 .text_size(metrics::TEXT_SM)
                 .text_color(t.ink_3)
-                .child("Open a file from the sidebar's Files or Search tab.")
-                .into_any_element();
-        };
-        div()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h_0()
-            .child(
-                div()
-                    .px(px(14.))
-                    .pb(px(8.))
-                    .flex()
-                    .gap(px(6.))
-                    .items_center()
-                    .child(icon("file", 12., t.ink_3))
-                    .child(
-                        ui::trunc(path)
-                            .text_size(metrics::TEXT_SM)
-                            .text_color(t.ink),
-                    ),
-            )
-            .child(
-                code_list("viewer", lines, t, false)
-                    .border_t_1()
-                    .border_color(t.line),
-            )
-            .into_any_element()
+                .child("Open a file from the sidebar's Files or Search tab. ⌘S saves.")
+                .into_any_element(),
+        }
     }
 }
 

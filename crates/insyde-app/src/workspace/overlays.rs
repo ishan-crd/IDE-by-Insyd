@@ -484,8 +484,15 @@ impl Workspace {
         let detached = cx.windows().len().saturating_sub(1);
         let lang = self
             .wt()
-            .and_then(|w| w.viewer.as_ref())
-            .map(|(p, _)| p.rsplit('.').next().unwrap_or("").to_uppercase())
+            .and_then(|w| w.editor.as_ref())
+            .map(|e| {
+                e.read(cx)
+                    .rel
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("")
+                    .to_uppercase()
+            })
             .filter(|s| !s.is_empty() && s.len() < 6);
         let stack = self
             .project()

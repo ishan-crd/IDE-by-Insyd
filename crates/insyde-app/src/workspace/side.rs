@@ -409,8 +409,8 @@ impl Workspace {
             let hover = t.hover;
             let sel = self
                 .wt()
-                .and_then(|w| w.viewer.as_ref())
-                .is_some_and(|(r, _)| *r == rel);
+                .and_then(|w| w.editor.as_ref())
+                .is_some_and(|e| e.read(cx).rel == rel);
             col = col.child(
                 div()
                     .id(SharedString::from(format!("f-{i}")))
@@ -444,7 +444,7 @@ impl Workspace {
                         icon("file", 12., t.ink_3)
                     })
                     .child(ui::trunc(name))
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                    .on_click(cx.listener(move |this, _, w, cx| {
                         if is_dir {
                             if !this.tree_open.remove(&p) {
                                 this.tree_open.insert(p.clone());
@@ -452,7 +452,7 @@ impl Workspace {
                             this.tree_cache = None;
                             cx.notify();
                         } else {
-                            this.open_file(rel.clone(), None, cx);
+                            this.open_file(rel.clone(), None, w, cx);
                         }
                     })),
             );
@@ -497,33 +497,34 @@ impl Workspace {
         for (i, (path, line, text)) in self.search_results.iter().enumerate() {
             let hover = t.hover;
             let (p, l) = (path.clone(), *line);
-            list = list.child(
-                div()
-                    .id(SharedString::from(format!("sr-{i}")))
-                    .px(px(8.))
-                    .py(px(5.))
-                    .rounded(px(5.))
-                    .cursor_pointer()
-                    .hover(move |s| s.bg(hover))
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(6.))
-                            .text_size(metrics::TEXT_XS)
-                            .text_color(t.ink_3)
-                            .child(ui::trunc(path.clone()))
-                            .child(div().flex_none().child(format!(":{line}"))),
-                    )
-                    .child(
-                        ui::trunc(text.clone())
-                            .font_family(metrics::MONO_FONT)
-                            .text_size(metrics::TEXT_MONO)
-                            .text_color(t.ink_2),
-                    )
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.open_file(p.clone(), Some(l), cx)),
-                    ),
-            );
+            list =
+                list.child(
+                    div()
+                        .id(SharedString::from(format!("sr-{i}")))
+                        .px(px(8.))
+                        .py(px(5.))
+                        .rounded(px(5.))
+                        .cursor_pointer()
+                        .hover(move |s| s.bg(hover))
+                        .child(
+                            div()
+                                .flex()
+                                .gap(px(6.))
+                                .text_size(metrics::TEXT_XS)
+                                .text_color(t.ink_3)
+                                .child(ui::trunc(path.clone()))
+                                .child(div().flex_none().child(format!(":{line}"))),
+                        )
+                        .child(
+                            ui::trunc(text.clone())
+                                .font_family(metrics::MONO_FONT)
+                                .text_size(metrics::TEXT_MONO)
+                                .text_color(t.ink_2),
+                        )
+                        .on_click(cx.listener(move |this, _, w, cx| {
+                            this.open_file(p.clone(), Some(l), w, cx)
+                        })),
+                );
         }
         div()
             .flex()

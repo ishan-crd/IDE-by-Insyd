@@ -9,7 +9,7 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 | 2 Worktrees | Done | List/create/remove, stats, PR badges, per-worktree state, swipe between projects. |
 | 3 Terminal | Done (core) | alacritty grid, keys, scrollback, split, pop-out. Missing: mouse selection, OSC 133. |
 | 4 Agents (ACP) | Done (core) | 7 ACP agents + TUI mode, permissions, persistence, resume, hand-off. |
-| 5 Files | Partial | File tree, viewer, search. No editing (agents edit; read-only viewer). |
+| 5 Files | Done | File tree, search, code editor (tree-sitter highlighting, line numbers, folding, find), ⌘S save, revert, reload after agent edits without clobbering unsaved work. |
 | 6 Review | Partial | Checks, diff, draft PR, re-run. Missing: line comments → agent, merge button. |
 | 7 CLI / socket | Not started | |
 | 8 Teams | Not started | "Super" is listed; runs Claude Code today. |

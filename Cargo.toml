@@ -11,7 +11,11 @@ repository = "https://github.com/ishan-crd/IDE-by-Insyd"
 [workspace.dependencies]
 # UI: gpui-component pins the exact gpui-pre snapshot. Bump both together.
 gpui = { package = "gpui-pre", version = "=0.3.6" }
-gpui-component = { version = "=0.6.6", default-features = false }
+gpui-component = { version = "=0.6.6", default-features = false, features = [
+  "tree-sitter-rust", "tree-sitter-typescript", "tree-sitter-tsx", "tree-sitter-javascript",
+  "tree-sitter-toml", "tree-sitter-markdown", "tree-sitter-python",
+  "tree-sitter-go", "tree-sitter-css", "tree-sitter-html", "tree-sitter-yaml", "tree-sitter-bash",
+] }
 
 anyhow = "1"
 thiserror = "2"

@@ -43,7 +43,8 @@ actions!(
         ToggleRight,
         ToggleTheme,
         NewTerminal,
-        OpenProject
+        OpenProject,
+        SaveFile
     ]
 );
 
@@ -109,7 +110,7 @@ pub struct WtState {
     pub files: Vec<FileStat>,
     pub diff_sel: Option<String>,
     pub patch: Option<Arc<Vec<SharedString>>>,
-    pub viewer: Option<(String, Arc<Vec<SharedString>>)>,
+    pub editor: Option<Entity<crate::editor::FileEditor>>,
     pub loading_pr: bool,
 }
 
@@ -640,7 +641,7 @@ impl Workspace {
             files: vec![],
             diff_sel: None,
             patch: None,
-            viewer: None,
+            editor: None,
             loading_pr: false,
         };
         self.wts.insert(path.clone(), ws);
@@ -951,6 +952,12 @@ impl Workspace {
             window,
             |this, chat, ev: &ChatEvent, window, cx| match ev {
                 ChatEvent::Status => {
+                    // An agent may have edited the open file: reload it unless you have unsaved edits.
+                    if !chat.read(cx).is_running() {
+                        if let Some(ed) = this.wt().and_then(|w| w.editor.clone()) {
+                            ed.update(cx, |e, cx| e.reload_if_clean(window, cx));
+                        }
+                    }
                     // A turn that finishes in the tab you're looking at is already reviewed.
                     if this.active_chat().as_ref() == Some(chat) && chat.read(cx).unseen {
                         chat.update(cx, |c, _| c.unseen = false);
@@ -1231,34 +1238,63 @@ impl Workspace {
         .detach();
     }
 
-    pub fn open_file(&mut self, rel: String, line: Option<usize>, cx: &mut Context<Self>) {
+    pub fn open_file(
+        &mut self,
+        rel: String,
+        line: Option<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(root) = self.active_wt_path() else {
             return;
         };
-        let r2 = rel.clone();
-        let task = cx.background_spawn(async move {
-            let bytes = std::fs::read(root.join(&r2)).unwrap_or_default();
-            if bytes.len() > 4 << 20 || bytes.contains(&0) {
-                return vec![SharedString::from("(binary or very large file)")];
-            }
-            String::from_utf8_lossy(&bytes)
-                .lines()
-                .map(|l| SharedString::from(l.replace('\t', "    ")))
-                .collect::<Vec<_>>()
-        });
-        cx.spawn(async move |this, cx| {
-            let lines = task.await;
-            let _ = this.update(cx, |this, cx| {
-                if let Some(ws) = this.wt_mut() {
-                    ws.viewer = Some((rel, Arc::new(lines)));
+        // Never drop unsaved work when switching files.
+        if let Some(ed) = self.wt().and_then(|w| w.editor.clone()) {
+            let (same, dirty, cur) = {
+                let e = ed.read(cx);
+                (e.rel == rel, e.dirty, e.rel.clone())
+            };
+            if dirty {
+                self.right_tab = RightTab::Files;
+                if !same {
+                    self.toast(
+                        format!("Unsaved changes in {cur}: save or revert first"),
+                        true,
+                        cx,
+                    );
                 }
-                this.right_tab = RightTab::Files;
-                this.prefs.show_right = true;
-                let _ = line;
                 cx.notify();
-            });
-        })
-        .detach();
+                return;
+            }
+        }
+        let ed = cx.new(|cx| crate::editor::FileEditor::open(root, rel, line, window, cx));
+        self._subs.push(cx.subscribe(
+            &ed,
+            |this, _, ev: &crate::editor::EditorEvent, cx| match ev {
+                crate::editor::EditorEvent::Saved(p) => {
+                    this.log(format!("Saved {p}"));
+                    this.refresh_wt_details(cx);
+                }
+                crate::editor::EditorEvent::Error(e) => this.toast(e.clone(), true, cx),
+            },
+        ));
+        if let Some(ws) = self.wt_mut() {
+            ws.editor = Some(ed);
+        }
+        self.right_tab = RightTab::Files;
+        self.prefs.show_right = true;
+        // Editing needs room: widen the panel once.
+        if self.prefs.right_w < 520. {
+            self.prefs.right_w = 520.;
+            self.save_prefs();
+        }
+        cx.notify();
+    }
+
+    pub fn save_file(&mut self, cx: &mut Context<Self>) {
+        if let Some(ed) = self.wt().and_then(|w| w.editor.clone()) {
+            ed.update(cx, |e, cx| e.save(cx));
+        }
     }
 
     pub fn select_diff_file(&mut self, rel: String, cx: &mut Context<Self>) {
@@ -1592,7 +1628,7 @@ impl Workspace {
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
         match d {
             Drag::Side { x0, w0 } => self.prefs.side_w = (w0 + x - x0).clamp(180., 420.),
-            Drag::Right { x0, w0 } => self.prefs.right_w = (w0 - (x - x0)).clamp(240., 560.),
+            Drag::Right { x0, w0 } => self.prefs.right_w = (w0 - (x - x0)).clamp(240., 900.),
             Drag::Term { y0, h0 } => self.prefs.term_h = (h0 - (y - y0)).clamp(110., 560.),
             Drag::Pane {
                 idx,
@@ -1831,7 +1867,8 @@ impl Render for Workspace {
             }))
             .on_action(cx.listener(|this, _: &ToggleTheme, _, cx| this.toggle_theme(cx)))
             .on_action(cx.listener(|this, _: &NewTerminal, _, cx| this.add_pane(None, cx)))
-            .on_action(cx.listener(|this, _: &OpenProject, w, cx| this.add_project(w, cx)));
+            .on_action(cx.listener(|this, _: &OpenProject, w, cx| this.add_project(w, cx)))
+            .on_action(cx.listener(|this, _: &SaveFile, _, cx| this.save_file(cx)));
         if self.drag.is_some() {
             root = root.cursor(if matches!(self.drag, Some(Drag::Term { .. })) {
                 gpui::CursorStyle::ResizeRow

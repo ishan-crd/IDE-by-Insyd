@@ -3,6 +3,7 @@
 mod assets;
 mod brain_view;
 mod chat;
+mod editor;
 mod search;
 mod terminal_view;
 mod ui;
@@ -102,6 +103,7 @@ fn main() {
                 KeyBinding::new("cmd-shift-l", ToggleTheme, Some("Workspace")),
                 KeyBinding::new("ctrl-`", NewTerminal, Some("Workspace")),
                 KeyBinding::new("cmd-o", OpenProject, Some("Workspace")),
+                KeyBinding::new("cmd-s", SaveFile, Some("Workspace")),
             ]);
             cx.on_action(|_: &Quit, cx| cx.quit());
             cx.on_window_closed(|cx, _| {
