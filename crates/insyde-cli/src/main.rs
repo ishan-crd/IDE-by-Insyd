@@ -25,6 +25,8 @@ USAGE
                                                shared state for agent teams (per project)
   insy team run <team.toml>                    start a lead + specialists team
   insy instructions                            how agents should use insy
+  insy serve [--port N] [--network] [--tunnel] serve the web client from this machine (no app needed)
+  insy serve --new-link                        replace the pairing link (old links stop working)
 
 Add --json to print raw JSON.";
 
@@ -67,6 +69,7 @@ fn run() -> Result<()> {
             println!("{INSTRUCTIONS}");
             return Ok(());
         }
+        ["serve", ..] => return serve(args[1..].to_vec()),
         ["status"] => ("status", json!({})),
         ["worktree", "list"] => ("worktree.list", json!({})),
         ["worktree", "create", title] => ("worktree.create", json!({ "title": title })),
@@ -228,4 +231,71 @@ fn agent_line(a: &Value) -> String {
         a["branch"].as_str().unwrap_or(""),
         a["title"].as_str().unwrap_or("")
     )
+}
+
+/// Run the web server in the foreground (headless machines, servers, CI boxes).
+fn serve(mut args: Vec<String>) -> Result<()> {
+    let settings = insyde_core::settings::get();
+    let port = match flag(&mut args, "--port") {
+        Some(p) => p
+            .parse()
+            .map_err(|_| anyhow::anyhow!("--port needs a number"))?,
+        None => settings.web_port,
+    };
+    let take = |args: &mut Vec<String>, name: &str| {
+        let i = args.iter().position(|a| a == name);
+        i.map(|i| args.remove(i)).is_some()
+    };
+    if take(&mut args, "--new-link") {
+        insyde_core::web::rotate_token();
+        println!("New pairing link created. Previous links no longer work.");
+    }
+    let network = take(&mut args, "--network") || settings.web_network;
+    let tunnel = take(&mut args, "--tunnel") || settings.web_tunnel;
+    if let Some(extra) = args.first() {
+        bail!("unknown option {extra} (see insy help)");
+    }
+    let store = insyde_core::store::Store::open_default()?;
+    let server = insyde_core::web::WebServer::start(store, port, network, tunnel)?;
+    println!(
+        "InsyDE web is running on {}. Press Ctrl-C to stop.\n",
+        server.hub.host
+    );
+    let mut printed = 0;
+    loop {
+        let links = server.links();
+        if links.len() > printed {
+            for l in &links[printed..] {
+                println!("  {:<14} {}", l.label, l.url);
+            }
+            // The QR code opens the best link for a phone (public, else network).
+            if let Some(best) = links.iter().rev().find(|l| !l.local) {
+                println!("\nScan to open on your phone ({}):\n", best.label);
+                println!("{}", insyde_core::web::qr_text(&best.url));
+            } else if !network && !tunnel {
+                println!(
+                    "\n  Only this computer can connect. Use --network (LAN, Tailscale) or --tunnel (public https)."
+                );
+            }
+            println!(
+                "  The link works like a key to this machine. Share it only with your own devices.\n"
+            );
+            printed = links.len();
+        }
+        if let Some(e) = server.tunnel_error() {
+            eprintln!("insy: {e}");
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if printed > 0
+            && !server.tunnel_pending()
+            && tunnel
+            && links.iter().any(|l| l.label == "Public link")
+        {
+            break;
+        }
+    }
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
 }
