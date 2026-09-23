@@ -360,7 +360,7 @@ pub mod metrics {
     pub const RADIUS: Pixels = px(6.);
     pub const RADIUS_LG: Pixels = px(10.);
     pub const SIDE_W: f32 = 248.;
-    pub const RIGHT_W: f32 = 360.;
+    pub const RIGHT_W: f32 = 380.;
     pub const TERM_H: f32 = 232.;
     pub const UI_FONT: &str = ".SystemUIFont";
     pub const MONO_FONT: &str = "Menlo";
