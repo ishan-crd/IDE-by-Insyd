@@ -394,6 +394,62 @@ pub fn file_patch(cwd: &Path, base: &str, path: &str) -> String {
     }
 }
 
+/// One line of a unified diff with its line numbers on each side.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PatchLine {
+    pub text: String,
+    pub old: Option<u32>,
+    pub new: Option<u32>,
+}
+
+/// Annotate unified-diff lines with old/new line numbers from hunk headers.
+pub fn annotate_patch(patch: &str) -> Vec<PatchLine> {
+    let (mut old, mut new) = (0u32, 0u32);
+    let mut out = Vec::new();
+    for l in patch.lines() {
+        if l.starts_with("diff --git")
+            || l.starts_with("index ")
+            || l.starts_with("new file")
+            || l.starts_with("deleted file")
+        {
+            continue;
+        }
+        let line = |o, n| PatchLine {
+            text: l.replace('\t', "    "),
+            old: o,
+            new: n,
+        };
+        if let Some(rest) = l.strip_prefix("@@ ") {
+            // "@@ -a,b +c,d @@"
+            let mut it = rest.split_whitespace();
+            let parse = |s: Option<&str>, p: char| {
+                s.and_then(|s| s.strip_prefix(p))
+                    .and_then(|s| s.split(',').next())
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0)
+            };
+            old = parse(it.next(), '-');
+            new = parse(it.next(), '+');
+            out.push(line(None, None));
+        } else if l.starts_with("+++") || l.starts_with("---") {
+            out.push(line(None, None));
+        } else if l.starts_with('+') {
+            out.push(line(None, Some(new)));
+            new += 1;
+        } else if l.starts_with('-') {
+            out.push(line(Some(old), None));
+            old += 1;
+        } else if l.starts_with('\\') {
+            out.push(line(None, None));
+        } else {
+            out.push(line(Some(old), Some(new)));
+            old += 1;
+            new += 1;
+        }
+    }
+    out
+}
+
 /// Full patch (capped) of the worktree vs base — used for agent hand-off.
 pub fn full_patch(cwd: &Path, base: &str, max_bytes: usize) -> String {
     let range = try_run(cwd, &["merge-base", "HEAD", base])
@@ -465,6 +521,17 @@ mod tests {
             "fix/push-token-refresh"
         );
         assert_eq!(slugify_branch("  "), "feat/task");
+    }
+
+    #[test]
+    fn patch_lines() {
+        let p =
+            annotate_patch("--- a/x\n+++ b/x\n@@ -3,3 +3,4 @@\n ctx\n-old\n+new1\n+new2\n ctx2\n");
+        assert_eq!(p[2].text, "@@ -3,3 +3,4 @@");
+        assert_eq!((p[3].old, p[3].new), (Some(3), Some(3)));
+        assert_eq!((p[4].old, p[4].new), (Some(4), None));
+        assert_eq!((p[5].old, p[5].new), (None, Some(4)));
+        assert_eq!((p[7].old, p[7].new), (Some(5), Some(6)));
     }
 
     #[test]

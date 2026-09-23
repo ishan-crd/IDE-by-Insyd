@@ -436,8 +436,19 @@ impl Workspace {
                 .child(list),
         );
         if let Some(lines) = patch {
+            let path = sel.clone().unwrap_or_default();
+            let commented: std::collections::HashSet<(i64, bool)> = self
+                .wt()
+                .map(|w| {
+                    w.comments
+                        .iter()
+                        .filter(|c| c.path == path)
+                        .map(|c| (c.line, c.side == "new"))
+                        .collect()
+                })
+                .unwrap_or_default();
             col = col.child(
-                code_list("patch", lines, t, true)
+                patch_list(lines, commented, t, cx.entity().downgrade())
                     .border_t_1()
                     .border_color(t.line),
             );
@@ -448,6 +459,150 @@ impl Workspace {
                     .text_size(metrics::TEXT_SM)
                     .text_color(t.ink_3)
                     .child("Loading diff…"),
+            );
+        }
+        col = col.child(self.render_comments(t, cx));
+        col.into_any_element()
+    }
+
+    /// Draft box for the line being commented, and the pending comments with "Send to agent".
+    fn render_comments(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let Some(ws) = self.wt() else {
+            return div().into_any_element();
+        };
+        let mut col = div().flex().flex_col().flex_none();
+        if let Some((path, line, side, code, input)) = &ws.draft {
+            let loc = if side == "old" {
+                format!("{path} · removed line {line}")
+            } else {
+                format!("{path}:{line}")
+            };
+            col = col.child(
+                div()
+                    .p(px(10.))
+                    .border_t_1()
+                    .border_color(t.line)
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child(loc),
+                    )
+                    .child(
+                        ui::trunc(code.clone())
+                            .font_family(metrics::MONO_FONT)
+                            .text_size(metrics::TEXT_MONO)
+                            .text_color(t.ink_2),
+                    )
+                    .child(gpui_component::input::Input::new(input).h(px(30.)))
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(6.))
+                            .justify_end()
+                            .child(ui::small_button("draft-cancel", "Cancel", t).on_click(
+                                cx.listener(|this, _, _, cx| {
+                                    if let Some(ws) = this.wt_mut() {
+                                        ws.draft = None;
+                                    }
+                                    cx.notify();
+                                }),
+                            ))
+                            .child(
+                                ui::primary_button("draft-add", t)
+                                    .h(px(26.))
+                                    .px(px(10.))
+                                    .text_size(metrics::TEXT_SM)
+                                    .child("Add comment")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let body = this
+                                            .wt()
+                                            .and_then(|w| w.draft.as_ref())
+                                            .map(|d| d.4.read(cx).value().to_string())
+                                            .unwrap_or_default();
+                                        this.add_comment(body, cx);
+                                    })),
+                            ),
+                    ),
+            );
+        }
+        let comments = ws.comments.clone();
+        if !comments.is_empty() {
+            let mut list = div()
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .max_h(px(160.))
+                .overflow_hidden();
+            for c in &comments {
+                let id = c.id;
+                list = list.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.))
+                        .text_size(metrics::TEXT_XS)
+                        .child(ui::dot(t.accent, 6.))
+                        .child(div().flex_none().text_color(t.ink_3).child(format!(
+                            "{}:{}",
+                            c.path.rsplit('/').next().unwrap_or(&c.path),
+                            c.line
+                        )))
+                        .child(ui::trunc(c.body.clone()).flex_1().text_color(t.ink_2))
+                        .child(
+                            ui::icon_button(
+                                SharedString::from(format!("rm-c-{id}")),
+                                "close",
+                                10.,
+                                t,
+                            )
+                            .size(px(18.))
+                            .on_click(
+                                cx.listener(move |this, _, _, cx| this.delete_comment(id, cx)),
+                            ),
+                        ),
+                );
+            }
+            col = col.child(
+                div()
+                    .p(px(10.))
+                    .border_t_1()
+                    .border_color(t.line)
+                    .bg(t.panel_2)
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.))
+                    .child(list)
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .text_size(metrics::TEXT_XS)
+                                    .text_color(t.ink_3)
+                                    .child(format!(
+                                        "{} comment{}",
+                                        comments.len(),
+                                        if comments.len() == 1 { "" } else { "s" }
+                                    )),
+                            )
+                            .child(
+                                ui::primary_button("send-comments", t)
+                                    .h(px(26.))
+                                    .px(px(10.))
+                                    .text_size(metrics::TEXT_SM)
+                                    .child("Send to agent")
+                                    .on_click(
+                                        cx.listener(|this, _, w, cx| this.send_comments(w, cx)),
+                                    ),
+                            ),
+                    ),
             );
         }
         col.into_any_element()
@@ -472,49 +627,90 @@ impl Workspace {
     }
 }
 
-/// Virtualized monospace list (only visible lines are laid out).
-fn code_list(id: &'static str, lines: Arc<Vec<SharedString>>, t: &Theme, diff: bool) -> gpui::Div {
+/// Virtualized, line-numbered diff. Clicking a line starts a review comment on it.
+fn patch_list(
+    lines: Arc<Vec<insyde_core::git::PatchLine>>,
+    commented: std::collections::HashSet<(i64, bool)>,
+    t: &Theme,
+    ws: gpui::WeakEntity<Workspace>,
+) -> gpui::Div {
     let t = t.clone();
     let n = lines.len();
     div().flex_1().min_h_0().bg(t.panel_2).child(
-        uniform_list(id, n, move |range, _, _| {
+        uniform_list("patch", n, move |range, _, _| {
             range
                 .map(|i| {
                     let l = &lines[i];
-                    let (bg, fg) = if diff {
-                        if l.starts_with('+') && !l.starts_with("+++") {
-                            (t.ok.opacity(0.12), t.ink)
-                        } else if l.starts_with('-') && !l.starts_with("---") {
-                            (t.err.opacity(0.12), t.ink)
-                        } else if l.starts_with("@@") {
-                            (t.accent.opacity(0.08), t.accent)
-                        } else {
-                            (gpui::transparent_black(), t.ink_2)
-                        }
+                    let text = l.text.as_str();
+                    let (bg, fg) = if text.starts_with('+') && !text.starts_with("+++") {
+                        (t.ok.opacity(0.12), t.ink)
+                    } else if text.starts_with('-') && !text.starts_with("---") {
+                        (t.err.opacity(0.12), t.ink)
+                    } else if text.starts_with("@@") {
+                        (t.accent.opacity(0.08), t.accent)
                     } else {
                         (gpui::transparent_black(), t.ink_2)
                     };
+                    let key = match (l.new, l.old) {
+                        (Some(n), _) => Some((n as i64, true)),
+                        (None, Some(o)) => Some((o as i64, false)),
+                        _ => None,
+                    };
+                    let has = key.is_some_and(|k| commented.contains(&k));
+                    let num = l.new.or(l.old).map(|n| n.to_string()).unwrap_or_default();
+                    let hover = t.hover;
+                    let group = SharedString::from(format!("pl-{i}"));
+                    let line = l.clone();
+                    let ws = ws.clone();
                     div()
+                        .id(("patch-line", i))
+                        .group(group.clone())
+                        .w_full()
                         .flex()
+                        .items_center()
                         .h(px(19.))
-                        .px(px(10.))
                         .bg(bg)
                         .font_family(metrics::MONO_FONT)
                         .text_size(metrics::TEXT_MONO)
                         .whitespace_nowrap()
                         .overflow_hidden()
-                        .when(!diff, |d| {
-                            d.child(
-                                div()
-                                    .w(px(38.))
-                                    .flex_none()
-                                    .text_right()
-                                    .pr(px(10.))
-                                    .text_color(t.ink_faint)
-                                    .child((i + 1).to_string()),
-                            )
+                        .when(key.is_some(), |d| {
+                            d.cursor_pointer().hover(move |s| s.bg(hover))
                         })
-                        .child(div().text_color(fg).child(l.clone()))
+                        .child(
+                            div()
+                                .w(px(40.))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .justify_end()
+                                .gap(px(4.))
+                                .pr(px(8.))
+                                .text_color(t.ink_faint)
+                                .when(has, |d| d.child(ui::dot(t.accent, 6.)))
+                                .when(!has && key.is_some(), |d| {
+                                    d.child(
+                                        div()
+                                            .invisible()
+                                            .group_hover(group.clone(), |s| s.visible())
+                                            .text_color(t.accent)
+                                            .child("+"),
+                                    )
+                                })
+                                .child(num),
+                        )
+                        .child(
+                            div()
+                                .text_color(fg)
+                                .child(SharedString::from(l.text.clone())),
+                        )
+                        .when(key.is_some(), |d| {
+                            d.on_click(move |_, window, cx| {
+                                let line = line.clone();
+                                let _ =
+                                    ws.update(cx, |this, cx| this.start_comment(line, window, cx));
+                            })
+                        })
                 })
                 .collect()
         })

@@ -308,6 +308,13 @@ impl ChatView {
         (t.summary_text(24_000), t.open_tasks(), paths, a, r)
     }
 
+    /// Send `text` as if typed into the composer (used for review comments and teams).
+    pub fn send_text(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.composer
+            .update(cx, |c, cx| c.set_value(text, window, cx));
+        self.send(window, cx);
+    }
+
     fn send(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let text = self.composer.read(cx).value().to_string();
         let text = text.trim().to_string();

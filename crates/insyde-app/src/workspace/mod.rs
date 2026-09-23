@@ -109,7 +109,11 @@ pub struct WtState {
     pub pr: Option<PullRequest>,
     pub files: Vec<FileStat>,
     pub diff_sel: Option<String>,
-    pub patch: Option<Arc<Vec<SharedString>>>,
+    pub patch: Option<Arc<Vec<insyde_core::git::PatchLine>>>,
+    /// Review comments not yet sent to an agent.
+    pub comments: Vec<insyde_core::store::Comment>,
+    /// Comment being written: (file, line, side, code, input).
+    pub draft: Option<(String, i64, String, String, Entity<InputState>)>,
     pub editor: Option<Entity<crate::editor::FileEditor>>,
     pub loading_pr: bool,
 }
@@ -642,8 +646,12 @@ impl Workspace {
             diff_sel: None,
             patch: None,
             editor: None,
+            comments: vec![],
+            draft: None,
             loading_pr: false,
         };
+        let mut ws = ws;
+        ws.comments = self.store.pending_comments(&path);
         self.wts.insert(path.clone(), ws);
         self.add_pane(None, cx);
         let rows = self.store.open_sessions(&path).unwrap_or_default();
@@ -1310,11 +1318,7 @@ impl Workspace {
             ws.patch = None;
         }
         let task = cx.background_spawn(async move {
-            insyde_core::git::file_patch(&root, &base, &rel)
-                .lines()
-                .filter(|l| !l.starts_with("diff --git") && !l.starts_with("index "))
-                .map(|l| SharedString::from(l.replace('\t', "    ")))
-                .collect::<Vec<_>>()
+            insyde_core::git::annotate_patch(&insyde_core::git::file_patch(&root, &base, &rel))
         });
         cx.spawn(async move |this, cx| {
             let lines = task.await;
@@ -1327,6 +1331,110 @@ impl Workspace {
         })
         .detach();
         cx.notify();
+    }
+
+    // ---------- review comments ----------
+
+    pub fn start_comment(
+        &mut self,
+        line: insyde_core::git::PatchLine,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(path) = self.wt().and_then(|w| w.diff_sel.clone()) else {
+            return;
+        };
+        let (n, side) = match (line.new, line.old) {
+            (Some(n), _) => (n as i64, "new"),
+            (None, Some(o)) => (o as i64, "old"),
+            _ => return,
+        };
+        let input = cx.new(|cx| {
+            InputState::new(window, cx).placeholder("Comment for the agent… (Enter to add)")
+        });
+        self._subs.push(
+            cx.subscribe_in(&input, window, |this, s, ev: &InputEvent, _, cx| {
+                if let InputEvent::PressEnter { .. } = ev {
+                    let body = s.read(cx).value().to_string();
+                    this.add_comment(body, cx);
+                }
+            }),
+        );
+        input.update(cx, |s, cx| s.focus(window, cx));
+        let code = line.text.get(1..).unwrap_or("").to_string();
+        if let Some(ws) = self.wt_mut() {
+            ws.draft = Some((path, n, side.to_string(), code, input));
+        }
+        cx.notify();
+    }
+
+    pub fn add_comment(&mut self, body: String, cx: &mut Context<Self>) {
+        let Some(worktree) = self.active_wt_path() else {
+            return;
+        };
+        let store = self.store.clone();
+        let Some(ws) = self.wt_mut() else {
+            return;
+        };
+        let Some((path, line, side, code, _)) = ws.draft.take() else {
+            return;
+        };
+        if !body.trim().is_empty() {
+            let mut c = insyde_core::store::Comment {
+                id: 0,
+                worktree,
+                path,
+                line,
+                side,
+                code,
+                body,
+            };
+            c.id = store.add_comment(&c);
+            ws.comments.push(c);
+        }
+        cx.notify();
+    }
+
+    pub fn delete_comment(&mut self, id: i64, cx: &mut Context<Self>) {
+        self.store.delete_comment(id);
+        if let Some(ws) = self.wt_mut() {
+            ws.comments.retain(|c| c.id != id);
+        }
+        cx.notify();
+    }
+
+    /// Send all pending comments as one prompt to the active chat (starting one if needed).
+    pub fn send_comments(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let comments = self.wt().map(|w| w.comments.clone()).unwrap_or_default();
+        if comments.is_empty() {
+            return;
+        }
+        let chat = match self.active_chat() {
+            Some(c) => c,
+            None => {
+                self.open_chat(DEFAULT_AGENT, None, None, window, cx);
+                match self.active_chat() {
+                    Some(c) => c,
+                    None => return,
+                }
+            }
+        };
+        let prompt = insyde_core::store::Comment::prompt(&comments);
+        chat.update(cx, |c, cx| c.send_text(prompt, window, cx));
+        let ids: Vec<i64> = comments.iter().map(|c| c.id).collect();
+        self.store.mark_comments_sent(&ids);
+        if let Some(ws) = self.wt_mut() {
+            ws.comments.clear();
+        }
+        self.toast(
+            format!(
+                "Sent {} comment{} to the agent",
+                ids.len(),
+                if ids.len() == 1 { "" } else { "s" }
+            ),
+            false,
+            cx,
+        );
     }
 
     // ---------- PRs ----------

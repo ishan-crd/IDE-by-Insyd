@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS sessions(
   title TEXT NOT NULL, acp_id TEXT, created INTEGER NOT NULL, updated INTEGER NOT NULL,
   closed INTEGER NOT NULL DEFAULT 0, tokens INTEGER NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS sessions_wt ON sessions(worktree, closed);
+CREATE TABLE IF NOT EXISTS comments(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, worktree TEXT NOT NULL, path TEXT NOT NULL,
+  line INTEGER NOT NULL, side TEXT NOT NULL, code TEXT NOT NULL, body TEXT NOT NULL,
+  sent INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS comments_wt ON comments(worktree, sent);
 CREATE TABLE IF NOT EXISTS events(
   session INTEGER NOT NULL, seq INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(session, seq));
 "#;
@@ -49,6 +54,44 @@ pub struct ProjectRow {
     pub path: PathBuf,
     pub name: String,
     pub base: String,
+}
+
+/// A review comment anchored to a line of a worktree diff.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Comment {
+    pub id: i64,
+    pub worktree: PathBuf,
+    pub path: String,
+    /// 1-based line on `side`.
+    pub line: i64,
+    /// "new" (line exists after the change) or "old" (a removed line).
+    pub side: String,
+    /// The line's code, so the agent sees what was commented even after edits.
+    pub code: String,
+    pub body: String,
+}
+
+impl Comment {
+    /// All comments rendered as one prompt for an agent.
+    pub fn prompt(comments: &[Comment]) -> String {
+        let mut s = String::from(
+            "Please address these review comments on the current changes in this worktree:\n",
+        );
+        for c in comments {
+            let loc = if c.side == "old" {
+                format!("{} (removed line {})", c.path, c.line)
+            } else {
+                format!("{}:{}", c.path, c.line)
+            };
+            s.push_str(&format!(
+                "\n- {loc}\n  `{}`\n  {}\n",
+                c.code.trim(),
+                c.body.trim().replace('\n', "\n  ")
+            ));
+        }
+        s.push_str("\nWhen done, reply with a short note per comment.");
+        s
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -234,6 +277,51 @@ impl Store {
             .unwrap_or(0.0)
     }
 
+    // ---- review comments ----
+    pub fn add_comment(&self, c: &Comment) -> i64 {
+        let conn = self.conn.lock();
+        let _ = conn.execute(
+            "INSERT INTO comments(worktree,path,line,side,code,body,created) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+            params![c.worktree.to_string_lossy(), c.path, c.line, c.side, c.code, c.body, now()],
+        );
+        conn.last_insert_rowid()
+    }
+
+    /// Comments not yet sent to an agent.
+    pub fn pending_comments(&self, worktree: &Path) -> Vec<Comment> {
+        let conn = self.conn.lock();
+        let Ok(mut st) = conn.prepare("SELECT id,path,line,side,code,body FROM comments WHERE worktree=?1 AND sent=0 ORDER BY path,line,id") else {
+            return vec![];
+        };
+        st.query_map(params![worktree.to_string_lossy()], |r| {
+            Ok(Comment {
+                id: r.get(0)?,
+                worktree: worktree.to_path_buf(),
+                path: r.get(1)?,
+                line: r.get(2)?,
+                side: r.get(3)?,
+                code: r.get(4)?,
+                body: r.get(5)?,
+            })
+        })
+        .map(|it| it.filter_map(|x| x.ok()).collect())
+        .unwrap_or_default()
+    }
+
+    pub fn delete_comment(&self, id: i64) {
+        let _ = self
+            .conn
+            .lock()
+            .execute("DELETE FROM comments WHERE id=?1", params![id]);
+    }
+
+    pub fn mark_comments_sent(&self, ids: &[i64]) {
+        let conn = self.conn.lock();
+        for id in ids {
+            let _ = conn.execute("UPDATE comments SET sent=1 WHERE id=?1", params![id]);
+        }
+    }
+
     /// Append one transcript event. Called before the UI shows it, so a crash
     /// never loses what the user saw.
     pub fn append_event<T: Serialize>(&self, session: i64, seq: i64, ev: &T) {
@@ -279,5 +367,19 @@ mod tests {
             .unwrap();
         s.append_event(id, 0, &serde_json::json!({"k":1}));
         assert_eq!(s.events::<serde_json::Value>(id).len(), 1);
+        let c = Comment {
+            id: 0,
+            worktree: "/tmp/x".into(),
+            path: "a.rs".into(),
+            line: 3,
+            side: "new".into(),
+            code: "let x = 1;".into(),
+            body: "rename".into(),
+        };
+        let cid = s.add_comment(&c);
+        assert_eq!(s.pending_comments(Path::new("/tmp/x")).len(), 1);
+        assert!(Comment::prompt(&[c]).contains("a.rs:3"));
+        s.mark_comments_sent(&[cid]);
+        assert!(s.pending_comments(Path::new("/tmp/x")).is_empty());
     }
 }
