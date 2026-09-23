@@ -1499,11 +1499,6 @@ impl Workspace {
         };
         self.right_tab = RightTab::Editor;
         self.prefs.show_right = true;
-        // Editing needs room: widen the panel once.
-        if self.prefs.right_w < 520. {
-            self.prefs.right_w = 520.;
-            self.save_prefs();
-        }
         let open = self
             .wt()
             .and_then(|w| w.editors.iter().position(|e| e.read(cx).rel == rel));
