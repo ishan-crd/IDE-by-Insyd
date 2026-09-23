@@ -124,12 +124,14 @@ impl Workspace {
             )
             .child(div().flex_1())
             .child(seg)
-            .child(ui::small_button("new-term", "New", t).on_click(cx.listener(
-                |this, _, _, cx| {
-                    this.bottom_tab = BottomTab::Terminals;
-                    this.add_pane(None, cx);
-                },
-            )));
+            .child(
+                ui::small_button("new-term", "+ Terminal", t).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.bottom_tab = BottomTab::Terminals;
+                        this.add_pane(None, cx);
+                    },
+                )),
+            );
 
         let body: AnyElement = match self.bottom_tab {
             BottomTab::Terminals => self.render_panes(t, cx),
