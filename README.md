@@ -32,6 +32,12 @@ agent persistent context about the repository's main branch.
 - **Editor and review**: code editor with highlighting and ⌘S; comment on any diff line and send
   the comments to the agent.
 - Light and dark themes from the design tokens; all regions resizable and persisted.
+- **Settings** (gear in the sidebar or ⌘,): ten categories covering look and accent, agents
+  (default agent, approval policy, launch-command overrides, extra environment), the brain,
+  worktrees and git (location, branch prefix, setup command, files to copy, draft PRs), terminal,
+  editor, notifications, privacy and data cleanup, shortcuts and About. Search across all of them,
+  show only what you changed, reset any one. Everything saves to `settings.json` in the data folder,
+  which you can also edit by hand and reload.
 
 ## Command line
 

@@ -15,6 +15,7 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 | 8 Teams | Done | Lead + specialists from the agent menu ("Team…") or `insy team run team.toml`; specialists get their own worktrees and role prompts; coordination via `insy` (pure `insy` shell commands are auto-approved); Team tab shows members and shared state. |
 | 9 Remote | Done | Open `user@host:/path` (sidebar folder button or `insy open`). Git, worktrees, terminals (`ssh -t`), agents (ACP over the SSH pipe), GitHub, the editor, search, the file tree and the brain all run on the host through one multiplexed connection. Tested end to end with a fake `ssh` (`INSYDE_SSH`). |
 | 10 Packaging | Done (macOS) | `packaging/macos/bundle.sh` builds `InsyDE.app` (app + `insy`, icon from the design mark, Info.plist), signs it (ad-hoc, or `SIGN_IDENTITY`), and makes a `.dmg` (~10 MB). Tag `v*` to publish a release from CI. Notarization needs a Developer ID. Windows/Linux builds not done. |
+| Settings (new) | Done | Typed `settings.json` read by core and app; settings screen with categories, search, changed-only filter and per-setting reset; ⌘, opens it. |
 | Brain (new) | Done | SiYuan-style model, graph, notes, digest injected into agent prompts. |
 
 ## Deviations from docs/02-STACK.md
