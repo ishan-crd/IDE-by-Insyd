@@ -16,7 +16,6 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let (running, review) = self.counts(cx);
         let cost = self.store.total_cost();
         let brain: AnyElement = match self.project().map(|p| &p.brain) {
             None => div().into_any_element(),
@@ -86,24 +85,24 @@ impl Workspace {
                     .items_center()
                     .gap(px(6.))
                     .child(
-                        ui::button("open-brain", t)
-                            .pl(px(10.))
-                            .pr(px(8.))
-                            .child(brain_colored(t))
+                        div()
+                            .id("open-brain")
+                            .flex()
+                            .items_center()
+                            .gap(px(7.))
+                            .h(metrics::CONTROL_H)
+                            .px(px(10.))
+                            .rounded(metrics::RADIUS)
+                            .cursor_pointer()
+                            .text_color(t.ink)
+                            .font_weight(FontWeight::MEDIUM)
+                            .hover(move |s| s.bg(hover))
+                            .child(icon("brain", 15., t.ink_2))
                             .child("Context")
                             .child(
                                 div()
-                                    .min_w(px(18.))
-                                    .h(px(18.))
-                                    .px(px(5.))
-                                    .rounded(px(4.))
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .bg(t.hover_2)
-                                    .text_color(t.ink_2)
                                     .text_size(metrics::TEXT_XS)
-                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(t.ink_3)
                                     .child(n.to_string()),
                             )
                             .on_click(cx.listener(|this, _, w, cx| this.open_brain(w, cx))),
@@ -174,17 +173,6 @@ impl Workspace {
             .child(div().ml(px(2.)).child(brain))
             .child(div().flex_1())
             .child(session)
-            .child(
-                div()
-                    .mr(px(6.))
-                    .text_size(metrics::TEXT_SM)
-                    .text_color(t.ink_3)
-                    .child(format!(
-                        "{running} agent{} running · {review} need{} review",
-                        if running == 1 { "" } else { "s" },
-                        if review == 1 { "s" } else { "" }
-                    )),
-            )
             .child(
                 div()
                     .flex()
@@ -583,46 +571,4 @@ fn popover(content: AnyElement) -> impl IntoElement {
         )
         .with_priority(1),
     )
-}
-
-/// The filled, three-color brain glyph shown once a brain exists.
-fn brain_colored(t: &Theme) -> gpui::Div {
-    let p = &t.palette;
-    div()
-        .relative()
-        .size(px(15.))
-        .flex_none()
-        .child(
-            icon("brain-links", 15., t.ink_3)
-                .absolute()
-                .top_0()
-                .left_0(),
-        )
-        .child(
-            div()
-                .absolute()
-                .left(px(1.8))
-                .top(px(2.3))
-                .size(px(4.1))
-                .rounded_full()
-                .bg(p.blue),
-        )
-        .child(
-            div()
-                .absolute()
-                .left(px(10.3))
-                .top(px(2.3))
-                .size(px(3.3))
-                .rounded_full()
-                .bg(p.red),
-        )
-        .child(
-            div()
-                .absolute()
-                .left(px(5.9))
-                .top(px(9.8))
-                .size(px(4.1))
-                .rounded_full()
-                .bg(p.green),
-        )
 }
