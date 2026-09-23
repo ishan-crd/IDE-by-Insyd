@@ -953,10 +953,10 @@ impl Workspace {
             |this, chat, ev: &ChatEvent, window, cx| match ev {
                 ChatEvent::Status => {
                     // An agent may have edited the open file: reload it unless you have unsaved edits.
-                    if !chat.read(cx).is_running() {
-                        if let Some(ed) = this.wt().and_then(|w| w.editor.clone()) {
-                            ed.update(cx, |e, cx| e.reload_if_clean(window, cx));
-                        }
+                    if !chat.read(cx).is_running()
+                        && let Some(ed) = this.wt().and_then(|w| w.editor.clone())
+                    {
+                        ed.update(cx, |e, cx| e.reload_if_clean(window, cx));
                     }
                     // A turn that finishes in the tab you're looking at is already reviewed.
                     if this.active_chat().as_ref() == Some(chat) && chat.read(cx).unseen {
