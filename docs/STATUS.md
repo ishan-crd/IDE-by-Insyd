@@ -7,7 +7,7 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 | 0 Bootstrap | Done | Workspace, pinned toolchain, theme tokens from the design. CI not set up yet. |
 | 1 Shell, layout | Done | Design layout, resizable + persisted regions, light/dark. No command palette yet. |
 | 2 Worktrees | Done | List/create/remove, stats, PR badges, per-worktree state, swipe between projects. |
-| 3 Terminal | Done (core) | alacritty grid, keys, scrollback, split, pop-out. Missing: mouse selection, OSC 133. |
+| 3 Terminal | Done | alacritty grid, keys, scrollback, split, pop-out, mouse selection and copy. OSC 133 prompt marks not yet. |
 | 4 Agents (ACP) | Done (core) | 7 ACP agents + TUI mode, permissions, persistence, resume, hand-off. |
 | 5 Files | Done | File tree, search, code editor (tree-sitter highlighting, line numbers, folding, find), ⌘S save, revert, reload after agent edits without clobbering unsaved work. |
 | 6 Review | Done (core) | Checks, re-run, draft PR, line-numbered diff, review comments on any diff line (stored per worktree) sent to the agent as one prompt. Merge button still to do. |
