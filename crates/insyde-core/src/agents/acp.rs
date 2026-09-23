@@ -13,6 +13,22 @@ use super::transcript::{
     self, Item, PermissionPrompt, PlanEntry, ToolItem, ToolKind, ToolStatus, Transcript,
 };
 use super::{Cmd, augmented_path_blocking, which};
+
+/// How to start an agent process: a registry command or a user override.
+#[derive(Clone, Debug)]
+pub struct Launch {
+    pub program: String,
+    pub args: Vec<String>,
+}
+
+impl From<Cmd> for Launch {
+    fn from(c: Cmd) -> Self {
+        Self {
+            program: c.program.to_string(),
+            args: c.args.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+}
 use crate::store::{Store, now};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1 as acp;
@@ -84,7 +100,7 @@ impl AcpSession {
     /// previous run; `transcript` may already hold that session's history
     /// (loaded from the store), which is shown while the agent starts.
     pub fn start(
-        cmd: Cmd,
+        cmd: Launch,
         cwd: PathBuf,
         resume: Option<String>,
         transcript: Arc<Mutex<Transcript>>,
@@ -110,10 +126,11 @@ impl AcpSession {
             .name("acp-session".into())
             .spawn(move || {
                 let err_ctx = ctx.clone();
+                let program = cmd.program.clone();
                 if let Err(e) = smol::block_on(run(cmd, resume, ctx, rx)) {
                     let mut t = err_ctx.transcript.lock();
                     t.running = false;
-                    t.error = Some(explain_error(&e.to_string(), cmd));
+                    t.error = Some(explain_error(&e.to_string(), &program));
                     t.touch();
                     drop(t);
                     (err_ctx.notify)();
@@ -182,6 +199,9 @@ impl Ctx {
         let Some((store, id)) = &self.persist else {
             return;
         };
+        if !crate::settings::get().store_transcripts {
+            return;
+        }
         let mut t = self.transcript.lock();
         let from = t.persisted.min(t.items.len());
         for (i, it) in t.items.iter().enumerate().skip(from) {
@@ -198,11 +218,11 @@ impl Ctx {
     }
 }
 
-fn explain_error(e: &str, cmd: Cmd) -> String {
+fn explain_error(e: &str, program: &str) -> String {
     if e.contains("No such file") || e.contains("not found") || e.contains("os error 2") {
         format!(
             "Couldn't start `{}`. Install it (or Node.js for npx-based agents) and try again.",
-            cmd.program
+            program
         )
     } else if e.to_lowercase().contains("auth") {
         format!("The agent needs you to log in. Run its CLI once in a terminal to sign in.\n\n{e}")
@@ -513,7 +533,7 @@ fn allowed(cwd: &Path, p: &Path) -> bool {
 }
 
 async fn run(
-    cmd: Cmd,
+    cmd: Launch,
     resume: Option<String>,
     ctx: Ctx,
     rx: flume::Receiver<Command>,
@@ -524,14 +544,23 @@ async fn run(
         Some((host, dir)) => {
             let (p, a) = crate::remote::command_parts(
                 host,
-                &crate::remote::script_in(dir, cmd.program, cmd.args),
+                &crate::remote::script_in(
+                    dir,
+                    &cmd.program,
+                    &cmd.args.iter().map(String::as_str).collect::<Vec<_>>(),
+                ),
                 false,
             );
             (PathBuf::from(p), a)
         }
         None => (
-            which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?,
-            cmd.args.iter().map(|s| s.to_string()).collect(),
+            if cmd.program.contains('/') {
+                PathBuf::from(&cmd.program)
+            } else {
+                which(&cmd.program)
+                    .ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?
+            },
+            cmd.args.clone(),
         ),
     };
     let session_cwd = remote
@@ -549,6 +578,9 @@ async fn run(
         .env("INSYDE_WORKTREE", ctx.cwd.to_string_lossy().to_string());
     if let Some(h) = dirs::home_dir() {
         config = config.env("HOME", h.to_string_lossy().to_string());
+    }
+    for (k, v) in crate::settings::get().env_pairs() {
+        config = config.env(k, v);
     }
     let mut agent = AcpAgent::new(config);
     if std::env::var_os("INSYDE_ACP_DEBUG").is_some() {
@@ -584,7 +616,7 @@ async fn run(
                 let policy = *p_ctx.policy.lock();
                 let command = req.tool_call.fields.raw_input.as_ref().and_then(|v| v.get("command")).and_then(|c| c.as_str()).unwrap_or("");
                 // Team coordination through `insy` is always allowed; nothing else is.
-                let insy = matches!(kind, Some(ToolKind::Bash)) && is_insy_only(command);
+                let insy = crate::settings::get().auto_approve_insy && matches!(kind, Some(ToolKind::Bash)) && is_insy_only(command);
                 let auto = insy || match policy {
                     Policy::FullAccess => true,
                     Policy::AcceptEdits => matches!(kind, Some(ToolKind::Edit | ToolKind::Read | ToolKind::Search | ToolKind::Think)),

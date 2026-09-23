@@ -14,7 +14,7 @@ fn main() {
     let spec = AgentSpec::by_key(&key).expect("agent key");
     let cwd = std::env::current_dir().unwrap();
     let s = AcpSession::start(
-        spec.acp.unwrap(),
+        spec.acp.unwrap().into(),
         cwd,
         None,
         Default::default(),

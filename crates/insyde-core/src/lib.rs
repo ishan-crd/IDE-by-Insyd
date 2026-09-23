@@ -8,6 +8,7 @@ pub mod git;
 pub mod project;
 pub mod remote;
 pub mod rpc;
+pub mod settings;
 pub mod store;
 pub mod team;
 pub mod terminal;

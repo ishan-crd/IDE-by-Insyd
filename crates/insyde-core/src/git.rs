@@ -226,10 +226,21 @@ pub fn list_worktrees(repo: &Path) -> Result<Vec<WorktreeEntry>> {
 
 /// Turn a free-text task title into a branch name (`feat/…` when no prefix).
 pub fn slugify_branch(title: &str) -> String {
+    slugify_branch_with(title, "feat")
+}
+
+/// Like [`slugify_branch`] with a custom default prefix (from settings).
+pub fn slugify_branch_with(title: &str, default_prefix: &str) -> String {
     let t = title.trim();
+    let fallback = default_prefix.trim().trim_matches('/');
+    let fallback = if fallback.is_empty() {
+        "feat"
+    } else {
+        fallback
+    };
     let (prefix, rest) = match t.split_once('/') {
         Some((p, r)) if !p.contains(' ') && p.len() <= 12 => (p.to_lowercase(), r),
-        _ => ("feat".to_string(), t),
+        _ => (fallback.to_string(), t),
     };
     let mut slug = String::with_capacity(rest.len());
     let mut dash = false;
@@ -259,6 +270,23 @@ pub fn worktrees_dir(repo: &Path) -> PathBuf {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "repo".into());
+    // A custom location from settings ("{repo}" = repository name). Local repos only:
+    // remote worktrees always live next to their repo on the host.
+    let custom = crate::settings::get().worktree_root;
+    if !custom.trim().is_empty() && !remote::is_remote(repo) {
+        let expanded = custom.trim().replace("{repo}", &name);
+        let expanded = match expanded.strip_prefix("~/") {
+            Some(rest) => dirs::home_dir()
+                .map(|h| h.join(rest))
+                .unwrap_or_else(|| PathBuf::from(&expanded)),
+            None => PathBuf::from(&expanded),
+        };
+        return if expanded.is_absolute() {
+            expanded
+        } else {
+            repo.join(expanded)
+        };
+    }
     repo.parent()
         .unwrap_or(repo)
         .join(".insyde-worktrees")

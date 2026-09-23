@@ -168,6 +168,64 @@ impl Theme {
         }
     }
 
+    /// Recolor the accent (buttons, focus, selection, links) from one hue.
+    /// Selection tints are derived so they stay legible in both modes.
+    pub fn set_accent(&mut self, accent: Hsla) {
+        let dark = self.is_dark();
+        self.accent = if dark {
+            Hsla {
+                l: (accent.l + 0.06).min(0.72),
+                ..accent
+            }
+        } else {
+            accent
+        };
+        self.sel_bg = if dark {
+            Hsla {
+                l: 0.22,
+                s: accent.s * 0.45,
+                a: 1.,
+                ..accent
+            }
+        } else {
+            Hsla {
+                l: 0.96,
+                s: accent.s * 0.9,
+                a: 1.,
+                ..accent
+            }
+        };
+        self.sel_chip = if dark {
+            Hsla {
+                l: 0.3,
+                s: accent.s * 0.5,
+                a: 1.,
+                ..accent
+            }
+        } else {
+            Hsla {
+                l: 0.91,
+                s: accent.s * 0.85,
+                a: 1.,
+                ..accent
+            }
+        };
+        self.sel_text = if dark {
+            Hsla {
+                l: 0.83,
+                s: accent.s * 0.9,
+                a: 1.,
+                ..accent
+            }
+        } else {
+            Hsla {
+                l: 0.42,
+                a: 1.,
+                ..accent
+            }
+        };
+    }
+
     pub fn is_dark(&self) -> bool {
         self.mode == Mode::Dark
     }
@@ -248,10 +306,34 @@ pub mod metrics {
 }
 
 pub fn init(cx: &mut App, mode: Mode) {
-    cx.set_global(match mode {
+    init_with_accent(cx, mode, None);
+}
+
+/// Install the theme for `mode`, optionally with a custom accent color.
+pub fn init_with_accent(cx: &mut App, mode: Mode, accent: Option<Hsla>) {
+    let mut t = match mode {
         Mode::Light => Theme::light(),
         Mode::Dark => Theme::dark(),
-    });
+    };
+    if let Some(a) = accent {
+        t.set_accent(a);
+    }
+    cx.set_global(t);
+}
+
+/// Built-in accent choices (hex), matching the design's palette.
+pub fn accent_hex(name: &str) -> Option<u32> {
+    match name {
+        "violet" => Some(0x7C5CD6),
+        "green" => Some(0x2E9E6B),
+        "orange" => Some(0xE0733A),
+        "pink" => Some(0xD6457F),
+        _ => None, // blue = the design's own accent tokens
+    }
+}
+
+pub fn color(hex_value: u32) -> Hsla {
+    hex(hex_value)
 }
 
 pub trait ActiveTheme {

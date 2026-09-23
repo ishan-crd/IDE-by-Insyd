@@ -276,16 +276,17 @@ pub fn pr_for(worktree: &Path) -> Option<PullRequest> {
 }
 
 /// Push the branch and open a PR (draft), filling title/body from commits.
-pub fn create_pr(worktree: &Path, base: &str) -> anyhow::Result<String> {
+pub fn create_pr(worktree: &Path, base: &str, draft: bool) -> anyhow::Result<String> {
     let branch =
         crate::git::current_branch(worktree).ok_or_else(|| anyhow::anyhow!("detached HEAD"))?;
     crate::git::run(worktree, &["push", "-u", "origin", &branch])?;
-    gh(
-        worktree,
-        &["pr", "create", "--fill", "--draft", "--base", base],
-    )
-    .map(|s| s.trim().to_string())
-    .ok_or_else(|| anyhow::anyhow!("gh pr create failed (is gh installed and logged in?)"))
+    let mut args = vec!["pr", "create", "--fill", "--base", base];
+    if draft {
+        args.push("--draft");
+    }
+    gh(worktree, &args)
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| anyhow::anyhow!("gh pr create failed (is gh installed and logged in?)"))
 }
 
 pub fn rerun_failed(worktree: &Path) -> bool {

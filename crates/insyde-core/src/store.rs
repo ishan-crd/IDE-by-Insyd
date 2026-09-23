@@ -269,6 +269,17 @@ impl Store {
         .unwrap_or_default()
     }
 
+    /// Delete closed sessions and their transcripts. Returns how many were removed.
+    pub fn clear_closed_sessions(&self) -> usize {
+        let c = self.conn.lock();
+        let _ = c.execute(
+            "DELETE FROM events WHERE session IN (SELECT id FROM sessions WHERE closed=1)",
+            [],
+        );
+        c.execute("DELETE FROM sessions WHERE closed=1", [])
+            .unwrap_or(0)
+    }
+
     pub fn reopen_session(&self, id: i64) {
         let _ = self
             .conn
