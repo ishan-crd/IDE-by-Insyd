@@ -129,6 +129,17 @@ impl FileEditor {
         .detach();
     }
 
+    /// Move the cursor to a 1-based line.
+    pub fn goto_line(&mut self, line: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.state.update(cx, |s, cx| {
+            s.set_cursor_position(
+                gpui_component::input::Position::new(line.saturating_sub(1) as u32, 0),
+                window,
+                cx,
+            );
+        });
+    }
+
     /// Reload from disk (after an agent edited the file) unless there are unsaved edits.
     pub fn reload_if_clean(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.dirty || self.loading {

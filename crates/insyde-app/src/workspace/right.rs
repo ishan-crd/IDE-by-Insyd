@@ -43,7 +43,7 @@ impl Workspace {
         let body = match self.right_tab {
             RightTab::Checks => self.render_checks(t, cx),
             RightTab::Diff => self.render_diff(t, cx),
-            RightTab::Editor => self.render_viewer(t),
+            RightTab::Editor => self.render_viewer(t, cx),
         };
         div()
             .flex()
@@ -608,22 +608,90 @@ impl Workspace {
         col.into_any_element()
     }
 
-    fn render_viewer(&mut self, t: &Theme) -> AnyElement {
-        match self.wt().and_then(|w| w.editor.clone()) {
-            Some(ed) => div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .min_h_0()
-                .child(ed)
-                .into_any_element(),
-            None => div()
+    fn render_viewer(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let Some(ws) = self.wt() else {
+            return div().into_any_element();
+        };
+        let Some(active) = ws.editor() else {
+            return div()
                 .p(px(14.))
                 .text_size(metrics::TEXT_SM)
                 .text_color(t.ink_3)
                 .child("Open a file from the sidebar's Files or Search tab. ⌘S saves.")
-                .into_any_element(),
-        }
+                .into_any_element();
+        };
+        let (editors, ix) = (ws.editors.clone(), ws.editor_ix);
+        // A strip of editor tabs once more than one file is open.
+        let strip = (editors.len() > 1).then(|| {
+            let mut strip = div()
+                .id("editor-tabs")
+                .flex()
+                .flex_none()
+                .overflow_x_scroll()
+                .mx(px(10.))
+                .mb(px(8.))
+                .gap(px(2.));
+            for (i, ed) in editors.iter().enumerate() {
+                let e = ed.read(cx);
+                let name = e.rel.rsplit('/').next().unwrap_or(&e.rel).to_string();
+                let on = i == ix;
+                let (hover, h2, ink) = (t.hover, t.hover_2, t.ink);
+                strip = strip.child(
+                    div()
+                        .id(SharedString::from(format!("et-{i}")))
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap(px(6.))
+                        .h(px(26.))
+                        .pl(px(10.))
+                        .pr(px(4.))
+                        .rounded(metrics::RADIUS)
+                        .cursor_pointer()
+                        .text_size(metrics::TEXT_SM)
+                        .text_color(if on { t.ink } else { t.ink_3 })
+                        .bg(if on {
+                            t.hover_2
+                        } else {
+                            gpui::transparent_black()
+                        })
+                        .hover(move |s| s.bg(hover))
+                        .child(name)
+                        .when(e.dirty, |d| d.child(ui::dot(t.warn, 6.)))
+                        .child(
+                            div()
+                                .id(SharedString::from(format!("et-x-{i}")))
+                                .size(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(4.))
+                                .text_color(t.ink_faint)
+                                .hover(move |s| s.bg(h2).text_color(ink))
+                                .child("×")
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    cx.stop_propagation();
+                                    this.close_editor(i, cx);
+                                })),
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(ws) = this.wt_mut() {
+                                ws.editor_ix = i;
+                            }
+                            cx.notify();
+                        })),
+                );
+            }
+            strip
+        });
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .children(strip)
+            .child(active)
+            .into_any_element()
     }
 }
 

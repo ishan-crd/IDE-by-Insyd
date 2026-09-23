@@ -606,7 +606,7 @@ impl Workspace {
         let detached = cx.windows().len().saturating_sub(1);
         let lang = self
             .wt()
-            .and_then(|w| w.editor.as_ref())
+            .and_then(|w| w.editor())
             .map(|e| {
                 e.read(cx)
                     .rel

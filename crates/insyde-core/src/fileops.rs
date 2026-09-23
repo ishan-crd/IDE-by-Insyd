@@ -133,15 +133,6 @@ pub fn reveal(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Open with the file's default app.
-pub fn open_default(path: &Path) -> Result<()> {
-    std::process::Command::new("open")
-        .arg(path)
-        .spawn()
-        .context("open")?;
-    Ok(())
-}
-
 /// A single path segment a user typed: no separators, not `.`/`..`, not empty.
 pub fn valid_name(name: &str) -> bool {
     let n = name.trim();

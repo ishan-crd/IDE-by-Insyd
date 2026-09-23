@@ -452,7 +452,7 @@ impl Workspace {
             let (p_menu, rel_menu) = (p.clone(), rel.clone());
             let sel = self
                 .wt()
-                .and_then(|w| w.editor.as_ref())
+                .and_then(|w| w.editor())
                 .is_some_and(|e| e.read(cx).rel == rel);
             col = col.child(
                 div()

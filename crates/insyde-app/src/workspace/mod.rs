@@ -135,6 +135,13 @@ pub struct Pane {
     pub frac: f32,
 }
 
+impl WtState {
+    /// The file shown in the right panel's Editor tab.
+    pub fn editor(&self) -> Option<Entity<crate::editor::FileEditor>> {
+        self.editors.get(self.editor_ix).cloned()
+    }
+}
+
 /// UI state of one worktree (created on first visit).
 pub struct WtState {
     pub tabs: Vec<AgentTab>,
@@ -148,7 +155,9 @@ pub struct WtState {
     pub comments: Vec<insyde_core::store::Comment>,
     /// Comment being written: (file, line, side, code, input).
     pub draft: Option<(String, i64, String, String, Entity<InputState>)>,
-    pub editor: Option<Entity<crate::editor::FileEditor>>,
+    /// Files open in the right panel's Editor tab, and which one is shown.
+    pub editors: Vec<Entity<crate::editor::FileEditor>>,
+    pub editor_ix: usize,
     /// (command, button label) for the top bar's Run button.
     pub run: Option<(String, String)>,
     pub loading_pr: bool,
@@ -726,7 +735,8 @@ impl Workspace {
             files: vec![],
             diff_sel: None,
             patch: None,
-            editor: None,
+            editors: vec![],
+            editor_ix: 0,
             run: None,
             comments: vec![],
             draft: None,
@@ -1078,10 +1088,10 @@ impl Workspace {
             |this, chat, ev: &ChatEvent, window, cx| match ev {
                 ChatEvent::Status => {
                     // An agent may have edited the open file: reload it unless you have unsaved edits.
-                    if !chat.read(cx).is_running()
-                        && let Some(ed) = this.wt().and_then(|w| w.editor.clone())
-                    {
-                        ed.update(cx, |e, cx| e.reload_if_clean(window, cx));
+                    if !chat.read(cx).is_running() {
+                        for ed in this.wt().map(|w| w.editors.clone()).unwrap_or_default() {
+                            ed.update(cx, |e, cx| e.reload_if_clean(window, cx));
+                        }
                     }
                     // A turn that finishes in the tab you're looking at is already reviewed.
                     if this.active_chat().as_ref() == Some(chat) && chat.read(cx).unseen {
@@ -1463,6 +1473,7 @@ impl Workspace {
         .detach();
     }
 
+    /// Show `rel` in the right panel's Editor, replacing the current file.
     pub fn open_file(
         &mut self,
         rel: String,
@@ -1470,29 +1481,59 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.open_file_in(rel, line, false, window, cx);
+    }
+
+    /// Show `rel` in the right panel's Editor: in a new editor tab, or in place
+    /// of the current one. A file that's already open is just brought forward.
+    pub fn open_file_in(
+        &mut self,
+        rel: String,
+        line: Option<usize>,
+        new_tab: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(root) = self.active_wt_path() else {
             return;
         };
-        // Never drop unsaved work when switching files.
-        if let Some(ed) = self.wt().and_then(|w| w.editor.clone()) {
-            let (same, dirty, cur) = {
+        self.right_tab = RightTab::Editor;
+        self.prefs.show_right = true;
+        // Editing needs room: widen the panel once.
+        if self.prefs.right_w < 520. {
+            self.prefs.right_w = 520.;
+            self.save_prefs();
+        }
+        let open = self
+            .wt()
+            .and_then(|w| w.editors.iter().position(|e| e.read(cx).rel == rel));
+        if let Some(i) = open {
+            if let Some(ws) = self.wt_mut() {
+                ws.editor_ix = i;
+            }
+            if let (Some(l), Some(ed)) = (line, self.wt().and_then(|w| w.editor())) {
+                ed.update(cx, |e, cx| e.goto_line(l, window, cx));
+            }
+            cx.notify();
+            return;
+        }
+        // Replacing a file never drops unsaved work.
+        if !new_tab && let Some(ed) = self.wt().and_then(|w| w.editor()) {
+            let (dirty, cur) = {
                 let e = ed.read(cx);
-                (e.rel == rel, e.dirty, e.rel.clone())
+                (e.dirty, e.rel.clone())
             };
-            if dirty && !same && insyde_core::settings::get().editor_autosave {
+            if dirty && insyde_core::settings::get().editor_autosave {
                 ed.update(cx, |e, cx| e.save(cx));
                 if ed.read(cx).dirty {
                     return; // save failed: keep the edits open (the error was shown)
                 }
             } else if dirty {
-                self.right_tab = RightTab::Editor;
-                if !same {
-                    self.toast(
-                        format!("Unsaved changes in {cur}: save or revert first"),
-                        true,
-                        cx,
-                    );
-                }
+                self.toast(
+                    format!("Unsaved changes in {cur}: save or revert first"),
+                    true,
+                    cx,
+                );
                 cx.notify();
                 return;
             }
@@ -1509,14 +1550,40 @@ impl Workspace {
             },
         ));
         if let Some(ws) = self.wt_mut() {
-            ws.editor = Some(ed);
+            if new_tab || ws.editors.is_empty() {
+                ws.editors.push(ed);
+                ws.editor_ix = ws.editors.len() - 1;
+            } else {
+                let i = ws.editor_ix.min(ws.editors.len() - 1);
+                ws.editors[i] = ed;
+                ws.editor_ix = i;
+            }
         }
-        self.right_tab = RightTab::Editor;
-        self.prefs.show_right = true;
-        // Editing needs room: widen the panel once.
-        if self.prefs.right_w < 520. {
-            self.prefs.right_w = 520.;
-            self.save_prefs();
+        cx.notify();
+    }
+
+    /// Close an editor tab in the right panel (refused with unsaved edits).
+    pub fn close_editor(&mut self, i: usize, cx: &mut Context<Self>) {
+        let Some(ed) = self.wt().and_then(|w| w.editors.get(i).cloned()) else {
+            return;
+        };
+        if ed.read(cx).dirty {
+            let rel = ed.read(cx).rel.clone();
+            if let Some(ws) = self.wt_mut() {
+                ws.editor_ix = i;
+            }
+            self.toast(
+                format!("Unsaved changes in {rel}: save or revert first"),
+                true,
+                cx,
+            );
+            return;
+        }
+        if let Some(ws) = self.wt_mut() {
+            ws.editors.remove(i);
+            if ws.editor_ix > i || ws.editor_ix >= ws.editors.len() {
+                ws.editor_ix = ws.editor_ix.saturating_sub(1);
+            }
         }
         cx.notify();
     }
@@ -1528,7 +1595,7 @@ impl Workspace {
                 Some(TabView::File(e)) => Some(e.clone()),
                 _ => None,
             });
-        if let Some(ed) = tab_editor.or_else(|| self.wt().and_then(|w| w.editor.clone())) {
+        if let Some(ed) = tab_editor.or_else(|| self.wt().and_then(|w| w.editor())) {
             ed.update(cx, |e, cx| e.save(cx));
         }
     }

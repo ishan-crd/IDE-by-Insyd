@@ -31,8 +31,8 @@ Crates are named `insyde-*` (the plan's `ide-*`).
   the Metal toolchain isn't installed by default in Xcode 26. See README for the fast path.
 - **Session controls** (context meter, Hand off, agent count, history): in the top bar, not the
   center tab strip as in the design (user request). Their popovers anchor under the buttons.
-- **File tree context menu**: right-click a file or folder for Open, Open in New Tab (a file tab
-  in the center strip), Open with Default App, Reveal in Finder, Open in Terminal, Copy (the file
+- **File tree context menu**: right-click a file or folder for Open, Open in New Tab (another
+  tab in the right panel's Editor), Open in Agent Area (a file tab in the center strip), Reveal in Finder, Open in Terminal, Copy (the file
   itself), Copy Path, Copy Relative Path, Rename, Duplicate, New File/Folder, Move to Trash
   (`insyde-core::fileops`; over SSH, Delete permanently). Empty space opens the root's menu.
 - **Top bar right side**: no Create PR button (the Checks panel still has it); the Run split

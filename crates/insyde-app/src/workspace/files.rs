@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 enum Action {
     Open,
     OpenTab,
-    OpenDefault,
+    OpenCenter,
     Reveal,
     Terminal,
     Copy,
@@ -101,8 +101,8 @@ impl Workspace {
         self.file_menu = None;
         match action {
             Action::Open => self.open_file(rel, None, window, cx),
-            Action::OpenTab => self.open_file_tab(rel, window, cx),
-            Action::OpenDefault => self.report(fileops::open_default(&path), None, cx),
+            Action::OpenTab => self.open_file_in(rel, None, true, window, cx),
+            Action::OpenCenter => self.open_file_tab(rel, window, cx),
             Action::Reveal => self.report(fileops::reveal(&path), None, cx),
             Action::Terminal => {
                 let dir = if is_dir {
@@ -329,9 +329,8 @@ impl Workspace {
     fn forget_path(&mut self, rel: &str, cx: &mut Context<Self>) {
         let gone = |e: &crate::editor::FileEditor| under(&e.rel, rel).is_some();
         if let Some(ws) = self.wt_mut() {
-            if ws.editor.as_ref().is_some_and(|e| gone(e.read(cx))) {
-                ws.editor = None;
-            }
+            ws.editors.retain(|e| !gone(e.read(cx)));
+            ws.editor_ix = ws.editor_ix.min(ws.editors.len().saturating_sub(1));
             let before = ws.tabs.len();
             ws.tabs
                 .retain(|t| !matches!(&t.view, TabView::File(e) if gone(e.read(cx))));
@@ -343,7 +342,7 @@ impl Workspace {
 
     fn open_editors(&self) -> Vec<gpui::Entity<crate::editor::FileEditor>> {
         let Some(ws) = self.wt() else { return vec![] };
-        ws.editor
+        ws.editors
             .iter()
             .cloned()
             .chain(ws.tabs.iter().filter_map(|t| match &t.view {
@@ -427,7 +426,7 @@ impl Workspace {
                     vec![
                         (Action::Open, "Open"),
                         (Action::OpenTab, "Open in New Tab"),
-                        (Action::OpenDefault, "Open with Default App"),
+                        (Action::OpenCenter, "Open in Agent Area"),
                     ],
                     vec![
                         (Action::Reveal, "Reveal in Finder"),
@@ -451,7 +450,7 @@ impl Workspace {
                 let group: Vec<_> = group
                     .into_iter()
                     .filter(|(a, ..)| {
-                        !(remote && matches!(a, Action::Reveal | Action::OpenDefault | Action::Copy))
+                        !(remote && matches!(a, Action::Reveal | Action::Copy))
                             // The worktree root itself can't be renamed or trashed here.
                             && !(is_root
                                 && matches!(
