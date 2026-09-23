@@ -807,27 +807,25 @@ impl Workspace {
         let input = cx.new(|cx| {
             InputState::new(window, cx).placeholder("Task or branch, e.g. fix/login redirect")
         });
-        self._subs.push(
-            cx.subscribe_in(
-                &input,
-                window,
-                |this, s, ev: &InputEvent, window, cx| match ev {
-                    InputEvent::PressEnter { .. } => {
-                        let title = s.read(cx).value().to_string();
-                        this.new_wt = None;
-                        if !title.trim().is_empty() {
-                            this.create_worktree(title, None, cx);
-                        }
-                        cx.notify();
+        self._subs.push(cx.subscribe_in(
+            &input,
+            window,
+            |this, s, ev: &InputEvent, _window, cx| match ev {
+                InputEvent::PressEnter { .. } => {
+                    let title = s.read(cx).value().to_string();
+                    this.new_wt = None;
+                    if !title.trim().is_empty() {
+                        this.create_worktree(title, None, cx);
                     }
-                    InputEvent::Blur => {
-                        this.new_wt = None;
-                        cx.notify();
-                    }
-                    _ => {}
-                },
-            ),
-        );
+                    cx.notify();
+                }
+                InputEvent::Blur => {
+                    this.new_wt = None;
+                    cx.notify();
+                }
+                _ => {}
+            },
+        ));
         input.update(cx, |s, cx| s.focus(window, cx));
         self.new_wt = Some(input);
         cx.notify();
