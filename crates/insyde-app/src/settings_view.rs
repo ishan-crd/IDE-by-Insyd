@@ -71,7 +71,7 @@ impl Cat {
             Cat::Agents => "Which agent starts, how it's approved, and how it's launched.",
             Cat::Brain => "How much project context every agent receives.",
             Cat::Worktrees => "Where task worktrees live and what happens when one is created.",
-            Cat::Terminal => "Font, scrollback, shell and keyboard behavior.",
+            Cat::Terminal => "How many open, font, scrollback, shell and keyboard behavior.",
             Cat::Editor => "The file editor in the right panel.",
             Cat::Alerts => "When InsyDE should tap you on the shoulder.",
             Cat::Web => {
@@ -783,6 +783,24 @@ impl SettingsView {
         );
 
         // Terminal
+        tile!(
+            Cat::Terminal,
+            "Terminals per worktree",
+            "Opened side by side when a worktree is first shown.",
+            s.default_terminals != d.default_terminals,
+            Some(|s: &mut Settings| s.default_terminals = 3),
+            self.stepper(
+                "nterms",
+                s.default_terminals as f32,
+                1.,
+                1.,
+                6.,
+                "",
+                |s, v| s.default_terminals = v as u32,
+                t,
+                cx
+            )
+        );
         tile!(
             Cat::Terminal,
             "Font",

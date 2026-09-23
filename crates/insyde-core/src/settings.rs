@@ -86,6 +86,8 @@ pub struct Settings {
     pub confirm_worktree_delete: bool,
 
     // Terminal
+    /// Terminals opened in the bottom panel when a worktree is first shown.
+    pub default_terminals: u32,
     pub term_font: String,
     pub term_font_size: f32,
     pub term_line_height: f32,
@@ -147,6 +149,7 @@ impl Default for Settings {
             refresh_secs: 20,
             pr_draft: true,
             confirm_worktree_delete: true,
+            default_terminals: 3,
             term_font: "Menlo".into(),
             term_font_size: 11.5,
             term_line_height: 1.7,

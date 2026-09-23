@@ -700,8 +700,13 @@ impl Workspace {
         let mut ws = ws;
         ws.comments = self.store.pending_comments(&path);
         self.wts.insert(path.clone(), ws);
+        // The first terminal runs the worktree's setup command, if any.
         let setup = self.pending_setup.remove(&path);
         self.add_pane(setup, cx);
+        let n = insyde_core::settings::get().default_terminals.clamp(1, 6);
+        for _ in 1..n {
+            self.add_pane(None, cx);
+        }
         let rows = self.store.open_sessions(&path).unwrap_or_default();
         let mut restored = false;
         if let Some(window) = window {
