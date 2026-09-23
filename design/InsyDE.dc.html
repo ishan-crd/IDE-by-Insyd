@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  .theme-light{
+    --ground:#EDEDEB;--panel:#FFFFFF;--panel-2:#FAFAF9;
+    --line:#E4E4E1;--line-soft:#EFEFED;--field-border:#DCDCD8;
+    --hover:#F3F3F1;--hover-2:#F0F0EE;
+    --ink:#1A1A19;--ink-2:#3D3D3A;--ink-3:#706F6A;--ink-4:#767671;--ink-disabled:#B4B4AF;--ink-faint:#A3A39E;
+    --primary:#1A1A19;--primary-hover:#2E2E2C;--on-primary:#FFFFFF;
+    --accent:#2F6BEB;--sel-bg:#EDF2FE;--sel-chip:#D6E2FD;--sel-text:#1D49B8;
+    --seg-active:#FFFFFF;--seg-shadow:0 1px 2px rgba(20,20,19,.10),0 0 0 1px rgba(20,20,19,.06);
+    --shadow-pop:0 4px 12px -4px rgba(20,20,19,.18);
+    --ok:#2E9E6B;--err:#B3261E;--warn:#D8A23A;--err-bg:#FDECEC;--err-border:#F0B4B7;
+    --scroll-thumb:#C9C9C4;
+    color-scheme:light;
+  }
+  .theme-dark{
+    --ground:#151514;--panel:#1D1D1C;--panel-2:#222221;
+    --line:#2D2D2B;--line-soft:#282826;--field-border:#383836;
+    --hover:#2A2A28;--hover-2:#2F2F2D;
+    --ink:#F2F2F0;--ink-2:#C9C9C5;--ink-3:#9C9C97;--ink-4:#8A8A84;--ink-disabled:#55554F;--ink-faint:#5E5E58;
+    --primary:#F2F2F0;--primary-hover:#FFFFFF;--on-primary:#1A1A19;
+    --accent:#3D74E8;--sel-bg:#22304D;--sel-chip:#2C3F6B;--sel-text:#A9C2FF;
+    --seg-active:#3A3A38;--seg-shadow:0 1px 2px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06);
+    --shadow-pop:0 4px 12px -4px rgba(0,0,0,.6);
+    --ok:#3ECF8E;--err:#F0A0A4;--warn:#F2C14E;--err-bg:#3A1F20;--err-border:#6B3236;
+    --scroll-thumb:#4A4A47;
+    color-scheme:dark;
+  }
+  html,body{margin:0;padding:0;background:#0E0E0D}
+  *{box-sizing:border-box}
+  a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+  button{transition:background-color .15s ease,color .15s ease,border-color .15s ease}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  ::selection{background:var(--sel-chip);color:var(--ink)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</helmet>
+<div class="{{ themeClass }}" style="position:relative;width:1512px;height:982px;background:var(--ground);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.4;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;overflow:hidden;display:grid;grid-template-rows:48px minmax(0,1fr) {{ termH }}px 26px">
+
+  <!-- TOP BAR -->
+  <header style="display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;background:var(--panel);border-bottom:1px solid var(--line)">
+    <div style="display:flex;gap:8px;margin-right:10px"><span style="width:12px;height:12px;border-radius:50%;background:#FF5F57"></span><span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E"></span><span style="width:12px;height:12px;border-radius:50%;background:#28C840"></span></div>
+    <div style="display:flex;align-items:baseline;gap:6px;padding-right:14px;margin-right:4px;border-right:1px solid var(--line);line-height:1">
+      <span style="font-size:14px;font-weight:600;letter-spacing:-.01em;color:var(--ink)">InsyDE</span>
+      <span style="font-size:12px;color:var(--ink-3)">by Insyd</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:2px">
+      <sc-if value="{{ brainNone }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ createBrain }}" title="Build a persistent context graph from main" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink);font:inherit;font-weight:500">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4.5" r="2" stroke="currentColor" stroke-width="1.3"></circle><circle cx="12" cy="4" r="1.6" stroke="currentColor" stroke-width="1.3"></circle><circle cx="8" cy="12" r="2" stroke="currentColor" stroke-width="1.3"></circle><path d="M5.8 5.4L7 10.1M10.8 5.2L8.9 10.2M6 4.4h4.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          Create Brain
+        </button>
+        <span style="font-size:12px;color:var(--ink-3)">Persistent project context from main</span>
+      </sc-if>
+      <sc-if value="{{ brainBuilding }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;width:240px;height:30px;padding:0 10px;border:1px solid var(--field-border);border-radius:6px">
+          <div style="display:flex;font-size:11px;color:var(--ink-2)"><span>{{ buildLabel }}</span><span style="margin-left:auto;font-weight:500;color:var(--ink)">{{ buildPct }}%</span></div>
+          <div style="height:3px;border-radius:3px;background:var(--line);overflow:hidden"><div style="height:100%;width:{{ buildPct }}%;background:var(--primary);border-radius:3px"></div></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ brainReady }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ openBrain }}" title="View project brain" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 8px 0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink);font:inherit;font-weight:500">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4.5" r="2" fill="#3B7DD8"></circle><circle cx="12" cy="4" r="1.6" fill="#D95F6E"></circle><circle cx="8" cy="12" r="2" fill="#2E9E6B"></circle><path d="M5.8 5.4L7 10.1M10.8 5.2L8.9 10.2M6 4.4h4.4" stroke="var(--ink-3)" stroke-width="1.1" stroke-linecap="round"></path></svg>
+          Context
+          <span style="display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:4px;background:var(--hover-2);color:var(--ink-2);font-size:11px;font-weight:600">{{ nodeCount }}</span>
+        </button>
+        <button onClick="{{ updateBrain }}" title="Re-index main and merge new context" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;color:var(--ink-2);font:inherit;font-weight:500">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 11-1.6-3.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path><path d="M12 1.5V4.2H9.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          Update
+        </button>
+        <span style="font-size:11px;color:var(--ink-3)">{{ brainUpdated }}</span>
+      </sc-if>
+    </div>
+    <div style="flex:1"></div>
+    <span style="font-size:12px;color:var(--ink-3);margin-right:6px">4 agents running · 1 needs review</span>
+    <div style="display:flex;align-items:center;height:30px;padding:0 10px;border:1px solid var(--field-border);border-radius:6px;font-size:12px;font-weight:500;color:var(--ink-2)">$46.07</div>
+    <button style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink);font:inherit;font-weight:500">
+      <svg width="12" height="12" viewBox="0 0 14 14"><path d="M4.6 2.9l6 3.7a.7.7 0 010 1.2l-6 3.7a.7.7 0 01-1.06-.6V3.5a.7.7 0 011.06-.6z" fill="currentColor"></path></svg>
+      Run on iPhone 16 Pro
+    </button>
+    <button title="Layout" style-hover="background:var(--hover)" style="width:30px;height:30px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink)">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.3"></rect><path d="M5.5 2.5v11M5.5 9.5h9" stroke="currentColor" stroke-width="1.3"></path></svg>
+    </button>
+    <button onClick="{{ toggleTheme }}" title="Toggle theme" style-hover="background:var(--hover)" style="width:30px;height:30px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink)">
+      <sc-if value="{{ isLight }}" hint-placeholder-val="{{ false }}">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.6A5.5 5.5 0 016.4 2.5a5.5 5.5 0 107.1 7.1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>
+      </sc-if>
+      <sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>
+      </sc-if>
+    </button>
+    <button style-hover="background:var(--primary-hover)" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 14px;margin-left:2px;background:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;color:var(--on-primary);font:inherit;font-weight:500">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="3.5" r="1.8" stroke="currentColor" stroke-width="1.4"></circle><circle cx="4" cy="12.5" r="1.8" stroke="currentColor" stroke-width="1.4"></circle><circle cx="12" cy="12.5" r="1.8" stroke="currentColor" stroke-width="1.4"></circle><path d="M4 5.3v5.4M12 10.7V7a2.5 2.5 0 00-2.5-2.5H7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg>
+      Create PR
+    </button>
+  </header>
+
+  <!-- MIDDLE -->
+  <div style="position:relative;display:grid;grid-template-columns:{{ sideW }}px minmax(0,1fr) {{ rightW }}px;min-height:0">
+    <div onPointerDown="{{ dragSide }}" onDoubleClick="{{ resetSizes }}" title="Drag to resize · double-click to reset" style-hover="background:var(--accent)" style="position:absolute;top:0;bottom:0;left:{{ sideHandleX }}px;width:5px;z-index:4;cursor:col-resize;background:{{ dragSideBg }};transition:background-color .12s ease"></div>
+    <div onPointerDown="{{ dragRight }}" onDoubleClick="{{ resetSizes }}" title="Drag to resize · double-click to reset" style-hover="background:var(--accent)" style="position:absolute;top:0;bottom:0;right:{{ rightHandleX }}px;width:5px;z-index:4;cursor:col-resize;background:{{ dragRightBg }};transition:background-color .12s ease"></div>
+
+    <!-- SIDEBAR -->
+    <aside style="display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line);overflow:hidden">
+      <div style="padding:10px 10px 8px">
+        <div style="display:flex;gap:2px;padding:2px;background:var(--hover-2);border-radius:7px">
+          <button style="flex:1;height:26px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:var(--seg-active);color:var(--ink);box-shadow:var(--seg-shadow)">Worktrees</button>
+          <button style="flex:1;height:26px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-3)">Files</button>
+          <button style="flex:1;height:26px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-3)">Search</button>
+        </div>
+      </div>
+      <div style="padding:6px 16px 6px;font-size:11px;color:var(--ink-3)">Projects</div>
+      <div onWheel="{{ onWheel }}" title="Two-finger swipe to switch project" style="flex:1;min-height:0;overflow:hidden">
+        <div style="transform:translateX({{ dx }}px);opacity:{{ op }};transition:{{ tr }};display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:10px;padding:2px 12px 10px 14px">
+            <span style="width:24px;height:24px;border-radius:5px;background:var(--hover-2);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ink-2)">{{ proj.letter }}</span>
+            <span style="font-size:13px;font-weight:600">{{ proj.name }}</span>
+            <button title="New worktree" style-hover="background:var(--hover-2);color:var(--ink)" style="margin-left:auto;width:24px;height:24px;display:grid;place-items:center;background:transparent;border:0;border-radius:5px;cursor:pointer;color:var(--ink-3)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg></button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px">
+            <sc-for list="{{ worktrees }}" as="w" hint-placeholder-count="7">
+              <div style-hover="background:var(--hover)" style="display:grid;grid-template-columns:12px 18px minmax(0,1fr) auto;column-gap:8px;row-gap:1px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer;background:{{ w.bg }}">
+                <span style="font-size:11px;font-weight:500;color:var(--ink-4);text-align:right">{{ w.i }}</span>
+                <span style="position:relative;width:16px;height:16px;color:{{ w.ic }}">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="4" cy="3.5" r="1.6"></circle><circle cx="4" cy="12.5" r="1.6"></circle><circle cx="12" cy="5" r="1.6"></circle><path d="M4 5.1v5.8M12 6.6c0 2.8-4 2.6-7.2 4.8"></path></svg>
+                  <sc-if value="{{ w.warn }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--err);box-shadow:0 0 0 2px var(--panel)"></span></sc-if>
+                  <sc-if value="{{ w.live }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px var(--panel);animation:pulse 1.4s infinite"></span></sc-if>
+                </span>
+                <span style="display:flex;align-items:center;gap:5px;min-width:0;font-size:12px;font-weight:{{ w.fw }};color:{{ w.fg }}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.branch }}</span><sc-if value="{{ w.star }}" hint-placeholder-val="{{ false }}"><span style="color:var(--ink-faint);font-size:10px">★</span></sc-if></span>
+                <span style="display:flex;gap:5px;font-size:11px;font-weight:500"><span style="color:var(--ok)">{{ w.add }}</span><span style="color:var(--err)">{{ w.del }}</span></span>
+                <span></span><span></span>
+                <span style="grid-column:3 / span 2;font-size:11px;color:var(--ink-3)">{{ w.meta }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding:8px 10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:4px">
+        <button title="Settings" style-hover="background:var(--hover-2)" style="width:28px;height:28px;display:grid;place-items:center;background:transparent;border:0;border-radius:6px;cursor:pointer;color:var(--ink-2)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg></button>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;gap:6px">
+          <sc-for list="{{ dots }}" as="d" hint-placeholder-count="3"><span onClick="{{ d.go }}" style="cursor:pointer;border-radius:3px;width:{{ d.w }}px;height:6px;background:{{ d.c }};transition:width .15s ease"></span></sc-for>
+        </div>
+        <span style="font-size:11px;color:var(--ink-faint);padding-right:4px">⇆ swipe</span>
+      </div>
+    </aside>
+
+    <!-- CHAT -->
+    <main style="display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--ground)">
+      <div style="position:relative;display:flex;align-items:stretch;height:40px;padding:0 8px 0 4px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px;z-index:5">
+        <div style="flex:0 1 auto;display:flex;align-items:stretch;min-width:0;overflow:hidden">
+          <sc-for list="{{ agentTabs }}" as="t" hint-placeholder-count="1">
+            <div onClick="{{ t.select }}" style-hover="background:var(--hover)" style="position:relative;flex:0 1 220px;min-width:110px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;cursor:pointer;color:{{ t.fg }};border-right:1px solid var(--line-soft)">
+              <span style="flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:700;color:#fff;background:{{ t.color }}">{{ t.mono }}</span>
+              <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:{{ t.fw }}">{{ t.title }}</span>
+              <sc-if value="{{ t.running }}" hint-placeholder-val="{{ false }}"><span style="flex:none;width:6px;height:6px;border-radius:50%;background:var(--ok);animation:pulse 1.4s infinite"></span></sc-if>
+              <span onClick="{{ t.close }}" title="Close" style-hover="background:var(--hover-2);color:var(--ink)" style="flex:none;width:16px;height:16px;display:grid;place-items:center;border-radius:4px;color:var(--ink-faint);font-size:13px;line-height:1">×</span>
+              <span style="position:absolute;left:0;right:0;bottom:-1px;height:2px;background:{{ t.bar }}"></span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;padding-left:6px">
+          <div style="display:flex;align-items:center;gap:1px;padding:2px;border-radius:7px;background:{{ addBg }}">
+            <button onClick="{{ quickAdd }}" title="New agent in this worktree" style-hover="background:var(--hover-2)" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;background:transparent;border:0;border-radius:5px;cursor:pointer;color:var(--ink-2);font:inherit;font-size:12px;font-weight:500">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg>Agent
+            </button>
+            <button onClick="{{ toggleMenu }}" title="Choose agent" style-hover="background:var(--hover-2)" style="width:22px;height:26px;display:grid;place-items:center;background:transparent;border:0;border-radius:5px;cursor:pointer;color:var(--ink-3)">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M4 5.5L7 8.5l3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+          </div>
+        </div>
+        <div style="flex:1 1 0;min-width:8px"></div>
+        <div style="flex:none;display:flex;align-items:center;gap:6px;white-space:nowrap">
+          <div title="Context window used by this agent" style="display:flex;align-items:center;gap:7px;padding:0 4px;font-size:11px;color:var(--ink-3)">
+            <span style="flex:none;width:44px;height:4px;border-radius:4px;background:var(--line);overflow:hidden"><span style="display:block;height:100%;width:{{ ctxPct }}%;border-radius:4px;background:{{ ctxColor }}"></span></span>
+            <span style="white-space:nowrap;font-weight:500;color:{{ ctxText }}">{{ ctxLabel }}</span>
+          </div>
+          <button onClick="{{ toggleHandoff }}" title="Carry this session's context to another agent" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;background:{{ hoBtnBg }};border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink);font:inherit;font-size:12px;font-weight:500">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 4.5h7.5M7 2l2.5 2.5L7 7M12 9.5H4.5M7 7l-2.5 2.5L7 12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            Hand off
+          </button>
+          <span style="display:flex;align-items:center;gap:6px;padding:2px 8px;border-radius:4px;background:var(--hover-2);font-size:11px;font-weight:500;color:var(--ink-2);white-space:nowrap">{{ agentCount }}</span>
+          <button title="Session history" style-hover="background:var(--hover-2);color:var(--ink)" style="width:28px;height:28px;display:grid;place-items:center;background:transparent;border:0;border-radius:6px;cursor:pointer;color:var(--ink-3)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"></circle><path d="M8 4.8V8l2.2 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg></button>
+        </div>
+
+        <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:1"></div>
+          <div style="position:absolute;top:38px;left:{{ menuLeft }}px;z-index:2;width:252px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-pop),0 12px 32px -12px rgba(0,0,0,.35)">
+            <div style="padding:6px 8px 4px;font-size:11px;color:var(--ink-3)">Add to feat/onboarding-v2</div>
+            <sc-for list="{{ agentMenu }}" as="m" hint-placeholder-count="11">
+              <button onClick="{{ m.pick }}" style-hover="background:var(--hover)" style="width:100%;display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;background:{{ m.bg }};border:0;border-radius:6px;cursor:pointer;text-align:left;color:var(--ink);font:inherit;font-size:13px">
+                <span style="width:12px;font-size:11px;color:var(--ink-faint);text-align:right">{{ m.key }}</span>
+                <span style="flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:{{ m.monoFg }};background:{{ m.color }};box-shadow:{{ m.ring }}">{{ m.mono }}</span>
+                <span style="flex:1">{{ m.name }}</span>
+                <span style="font-size:11px;color:var(--ink-3)">{{ m.hint }}</span>
+              </button>
+            </sc-for>
+            <div style="display:flex;align-items:center;margin-top:4px;padding:8px 8px 4px;border-top:1px solid var(--line-soft);font-size:11px;color:var(--ink-3)">Hold ⌘ for Chat UI<span style="margin-left:auto">1–9 to pick</span></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ hoOpen }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeHandoff }}" style="position:fixed;inset:0;z-index:1"></div>
+          <div style="position:absolute;top:38px;right:150px;z-index:2;width:340px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-pop),0 12px 32px -12px rgba(0,0,0,.35);overflow:hidden">
+            <div style="padding:12px 14px 10px;border-bottom:1px solid var(--line)">
+              <div style="font-size:13px;font-weight:600">Hand off session</div>
+              <div style="font-size:11px;color:var(--ink-3);margin-top:2px;text-wrap:pretty">Start a fresh agent in feat/onboarding-v2 with this session's context carried over.</div>
+            </div>
+            <div style="padding:10px 10px 6px">
+              <div style="padding:0 4px 6px;font-size:11px;color:var(--ink-3)">Continue with</div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px">
+                <sc-for list="{{ hoAgents }}" as="h" hint-placeholder-count="9">
+                  <button onClick="{{ h.pick }}" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:7px;height:32px;padding:0 8px;border-radius:6px;cursor:pointer;font:inherit;font-size:12px;text-align:left;color:var(--ink);background:{{ h.bg }};border:1px solid {{ h.border }}">
+                    <span style="flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:700;color:{{ h.monoFg }};background:{{ h.color }};box-shadow:{{ h.ring }}">{{ h.mono }}</span>
+                    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.name }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="padding:6px 10px 8px">
+              <div style="padding:0 4px 4px;font-size:11px;color:var(--ink-3)">Carry over</div>
+              <sc-for list="{{ hoOpts }}" as="o" hint-placeholder-count="5">
+                <button onClick="{{ o.toggle }}" style-hover="background:var(--hover)" style="width:100%;display:flex;align-items:center;gap:10px;height:34px;padding:0 6px;background:transparent;border:0;border-radius:6px;cursor:pointer;text-align:left;font:inherit;color:var(--ink)">
+                  <span style="flex:none;width:16px;height:16px;border-radius:4px;display:grid;place-items:center;color:#fff;background:{{ o.boxBg }};box-shadow:{{ o.boxRing }}"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="{{ o.check }}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                  <span style="flex:1;min-width:0"><span style="display:block;font-size:12px;font-weight:500">{{ o.label }}</span><span style="display:block;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.sub }}</span></span>
+                  <span style="font-size:11px;color:var(--ink-3)">{{ o.tok }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line);background:var(--panel-2)">
+              <span style="flex:1;font-size:11px;color:var(--ink-3)">{{ hoTotal }} → fresh window</span>
+              <button onClick="{{ closeHandoff }}" style-hover="background:var(--hover)" style="height:28px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Cancel</button>
+              <button onClick="{{ doHandoff }}" style-hover="background:var(--primary-hover)" style="height:28px;padding:0 12px;background:var(--primary);border:1px solid var(--primary);border-radius:6px;color:var(--on-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Hand off to {{ hoTargetName }}</button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ isFresh }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center">
+          <span style="width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff;background:{{ activeTab.color }}">{{ activeTab.mono }}</span>
+          <div style="font-size:14px;font-weight:600;color:var(--ink)">New {{ activeTab.agent }} session</div>
+          <sc-if value="{{ carried }}" hint-placeholder-val="{{ false }}">
+            <div style="width:380px;margin:4px 0 2px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sel-bg);color:var(--sel-text);font-size:11px;font-weight:500">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 4.5h7.5M7 2l2.5 2.5L7 7M12 9.5H4.5M7 7l-2.5 2.5L7 12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Context carried from {{ carriedFrom }}</span><span style="flex:none;white-space:nowrap">{{ carriedTok }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px">
+                <sc-for list="{{ carriedItems }}" as="ci" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)"><span style="width:14px;height:14px;border-radius:50%;background:#2E9E6B;display:grid;place-items:center;color:#fff"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><span style="flex:1">{{ ci.label }}</span><span style="font-size:11px;color:var(--ink-3)">{{ ci.tok }}</span></div>
+                </sc-for>
+              </div>
+              <div style="padding:8px 12px;border-top:1px solid var(--line-soft);font-size:11px;color:var(--ink-3);line-height:1.5">Picking up: re-run iOS e2e on iPhone 16 Pro, then mark PR #212 ready for review.</div>
+            </div>
+          </sc-if>
+          <div style="font-size:12px;color:var(--ink-3);max-width:340px;text-wrap:pretty">Shares the feat/onboarding-v2 worktree and sandbox with {{ otherAgents }}. Edits are coordinated per file.</div>
+          <sc-if value="{{ brainReady }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ toggleUseBrain }}" style-hover="background:var(--hover)" style="margin-top:6px;display:flex;align-items:center;gap:12px;width:340px;padding:10px 12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;cursor:pointer;text-align:left;font:inherit;color:var(--ink)">
+              <span style="flex:1"><span style="display:block;font-size:12px;font-weight:600">Start with Project Brain</span><span style="display:block;font-size:11px;color:var(--ink-3);margin-top:1px">{{ nodeCount }} notes from main · {{ brainTokens }}</span></span>
+              <span style="position:relative;width:28px;height:16px;border-radius:16px;background:{{ switchBg }}"><span style="position:absolute;top:2px;left:{{ switchX }}px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .15s ease"></span></span>
+            </button>
+          </sc-if>
+          <sc-if value="{{ brainNone }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ createBrain }}" style-hover="color:var(--ink)" style="margin-top:4px;background:transparent;border:0;color:var(--ink-2);font:inherit;font-size:12px;font-weight:500;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Create a brain so every agent starts with project context</button>
+          </sc-if>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-height:0;overflow:hidden;padding:20px 28px;display:flex;flex-direction:column;gap:14px;line-height:1.55;max-width:860px;width:100%;margin:0 auto">
+        <div style="align-self:flex-end;max-width:78%;padding:10px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--line);color:var(--ink);text-wrap:pretty">Push-permission step jumps on Android. Fix the layout shift, then run the onboarding e2e on both simulators.</div>
+        <div style="font-size:12px;color:var(--ink-3)">Worked for 4m 12s ›</div>
+        <div style="display:flex;flex-direction:column;gap:1px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;font-size:12px">
+          <sc-for list="{{ tools }}" as="t" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:9px;height:30px;padding:0 8px;border-radius:5px">
+              <span style="flex:none;min-width:30px;height:18px;padding:0 5px;border-radius:3px;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--hover-2);color:var(--ink-3)">{{ t.kind }}</span>
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;color:var(--ink-2)">{{ t.arg }}</span>
+              <span style="font-size:11px;color:var(--ink-3)">{{ t.meta }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="color:var(--ink-2);text-wrap:pretty">The shift came from <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--ink);background:var(--hover-2);padding:1px 5px;border-radius:4px">SafeAreaView</span> re-measuring after the permission dialog closes. I pinned the step container to a fixed inset and moved the icon into an absolutely-positioned layer. iOS is unaffected.</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-size:12px">
+          <span style="font-weight:500">2 changed files</span><span style="color:var(--ok);font-weight:500">+18</span><span style="color:var(--err);font-weight:500">−9</span>
+          <button style-hover="background:var(--hover)" style="margin-left:auto;height:26px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Open diff</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn);animation:pulse 1.4s infinite"></span>Running iOS e2e on iPhone 16 Pro…<span style="color:var(--ink-3)">38s · 12.4k tokens</span></div>
+      </div>
+      </sc-if>
+      <div style="padding:0 20px 16px;max-width:860px;width:100%;margin:0 auto">
+        <sc-if value="{{ ctxWarn }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:7px 8px 7px 12px;background:var(--err-bg);border:1px solid var(--err-border);border-radius:8px;font-size:12px;color:var(--err)">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--err)"></span>
+            <span style="flex:1"><span style="font-weight:600">Context 91% full.</span> The agent will start compacting soon. Carry this session to a fresh agent to keep full detail.</span>
+            <button onClick="{{ toggleHandoff }}" style-hover="background:var(--hover)" style="height:26px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Hand off</button>
+          </div>
+        </sc-if>
+        <div style="background:var(--panel);border:1px solid var(--field-border);border-radius:10px;box-shadow:var(--shadow-pop)">
+          <div style="padding:12px 14px 6px;color:var(--ink-faint)">Ask for changes, send follow-ups, or drop a simulator screenshot…</div>
+          <div style="display:flex;align-items:center;gap:6px;padding:6px 8px 8px 8px">
+            <button style-hover="background:var(--hover)" style="height:26px;padding:0 8px;background:transparent;border:0;border-radius:5px;color:var(--ink-2);font:inherit;font-size:12px;font-weight:500;cursor:pointer">claude-sonnet-5 ⌄</button>
+            <button style-hover="background:var(--hover)" style="height:26px;padding:0 8px;background:transparent;border:0;border-radius:5px;color:var(--ink-2);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Auto-approve edits ⌄</button>
+            <span style="font-size:11px;color:var(--ink-3);padding:2px 7px;background:var(--hover-2);border-radius:4px">feat/onboarding-v2</span>
+            <sc-if value="{{ brainReady }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ toggleUseBrain }}" title="Feed the project brain to this agent" style="display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:4px;border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:500;background:{{ useBrainBg }};color:{{ useBrainFg }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ useBrainDot }}"></span>Brain context</button>
+            </sc-if>
+            <button style-hover="background:var(--primary-hover)" style="margin-left:auto;width:28px;height:28px;display:grid;place-items:center;background:var(--primary);border:0;border-radius:6px;cursor:pointer;color:var(--on-primary)"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 11.5V2.5m0 0L3.5 6M7 2.5L10.5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- CHECKS -->
+    <aside style="display:flex;flex-direction:column;min-height:0;background:var(--panel);border-left:1px solid var(--line);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:6px;padding:10px 10px 8px">
+        <div style="flex:1;display:flex;gap:2px;padding:2px;background:var(--hover-2);border-radius:7px">
+          <button style="flex:1;height:26px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:var(--seg-active);color:var(--ink);box-shadow:var(--seg-shadow)">Checks</button>
+          <button style="flex:1;height:26px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-3)">Diff</button>
+          <button style="flex:1;height:26px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-3)">Files</button>
+        </div>
+        <button title="Pop out" style-hover="background:var(--hover-2);color:var(--ink)" style="width:28px;height:28px;display:grid;place-items:center;background:transparent;border:0;border-radius:6px;cursor:pointer;color:var(--ink-3)"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M8 2h4v4M12 2L6.5 7.5M10.5 8.5V11a1 1 0 01-1 1H3a1 1 0 01-1-1V4.5a1 1 0 011-1h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+      </div>
+      <div style="padding:6px 14px 12px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="width:26px;height:26px;border-radius:5px;background:var(--hover-2);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ink-2)">PR</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;color:var(--ink)">#212 · feat/onboarding-v2</div>
+            <div style="font-size:11px;color:var(--ink-3);margin-top:1px">6 passed · 1 running · base main</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;height:4px;border-radius:4px;overflow:hidden;gap:2px;background:var(--line)"><span style="flex:6;background:var(--ok)"></span><span style="flex:1;background:var(--warn)"></span></div>
+      </div>
+      <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:1px;padding:8px">
+        <sc-for list="{{ checks }}" as="c" hint-placeholder-count="7">
+          <div style-hover="background:var(--hover)" style="display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:center;padding:7px 8px;border-radius:6px;cursor:pointer;background:{{ c.bg }}">
+            <span style="width:16px;height:16px;border-radius:50%;background:{{ c.tint }};display:grid;place-items:center;color:#fff"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="{{ c.path }}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:12px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span><span style="font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.sub }}</span></span>
+            <span style="font-size:11px;color:var(--ink-3)">{{ c.time }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px">
+        <span style="flex:1;font-size:11px;color:var(--ink-3)">Merge blocked until checks pass</span>
+        <button style-hover="background:var(--hover)" style="height:28px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Re-run</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- TERMINALS -->
+  <section style="position:relative;display:flex;flex-direction:column;background:var(--panel);border-top:1px solid var(--line);overflow:hidden;min-height:0">
+    <div onPointerDown="{{ dragTerm }}" onDoubleClick="{{ resetSizes }}" title="Drag to resize · double-click to reset" style-hover="background:var(--accent)" style="position:absolute;left:0;right:0;top:0;height:5px;z-index:4;cursor:row-resize;background:{{ dragTermBg }};transition:background-color .12s ease"></div>
+    <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 14px;border-bottom:1px solid var(--line)">
+      <span style="font-size:12px;font-weight:600;color:var(--ink)">Terminals</span>
+      <span style="font-size:12px;color:var(--ink-3)">3 sessions · 2 problems</span>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:2px;padding:2px;background:var(--hover-2);border-radius:7px">
+        <button style="height:24px;padding:0 10px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:var(--seg-active);color:var(--ink);box-shadow:var(--seg-shadow)">Terminals</button>
+        <button style="height:24px;padding:0 10px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-2)">Logs</button>
+        <button style="height:24px;padding:0 10px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-2)">Problems</button>
+      </div>
+      <button style-hover="background:var(--hover)" style="height:26px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer">Split</button>
+      <button style-hover="background:var(--hover)" style="height:26px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;font-weight:500;cursor:pointer">+ New</button>
+    </div>
+    <div ref="{{ termBodyRef }}" style="flex:1;min-height:0;display:grid;grid-template-columns:{{ termCols }}">
+      <sc-for list="{{ terms }}" as="t" hint-placeholder-count="3">
+        <div style="position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel-2)">
+          <sc-if value="{{ t.hasHandle }}" hint-placeholder-val="{{ false }}"><div onPointerDown="{{ t.drag }}" onDoubleClick="{{ resetSizes }}" title="Drag to resize" style-hover="background:var(--accent)" style="position:absolute;top:0;bottom:0;right:-3px;width:5px;z-index:4;cursor:col-resize;background:{{ t.handleBg }};transition:background-color .12s ease"></div></sc-if>
+          <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 12px;border-bottom:1px solid var(--line-soft);font-size:12px">
+            <span style="width:7px;height:7px;border-radius:2px;background:{{ t.dot }}"></span>
+            <span style="font-weight:500;color:var(--ink)">{{ t.name }}</span><span style="color:var(--ink-3);font-size:11px">{{ t.sub }}</span>
+            <button title="Pop out to another display" style-hover="background:var(--hover-2);color:var(--ink)" style="margin-left:auto;display:flex;align-items:center;gap:5px;height:22px;padding:0 7px;background:transparent;border:0;border-radius:5px;cursor:pointer;color:var(--ink-3);font:inherit;font-size:11px;font-weight:500"><svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M8 2h4v4M12 2L6.5 7.5M10.5 8.5V11a1 1 0 01-1 1H3a1 1 0 01-1-1V4.5a1 1 0 011-1h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Pop out</button>
+          </div>
+          <div style="flex:1;min-height:0;overflow:hidden;padding:8px 12px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;line-height:1.7">
+            <sc-for list="{{ t.lines }}" as="l" hint-placeholder-count="6"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ l.c }}">{{ l.t }}</div></sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- STATUS BAR -->
+  <div style="display:flex;align-items:center;gap:16px;padding:0 14px;background:var(--panel);border-top:1px solid var(--line);font-size:11px;color:var(--ink-3)">
+    <span style="color:var(--ink-2);font-weight:500">feat/onboarding-v2</span><span>↑2 ↓0</span><span>PR #212 draft</span><span>Sandbox: docker · healthy</span>
+    <span style="margin-left:auto">MacBook Pro 14″ · 1512×982</span><span>1 window detached</span><span>UTF-8 · TSX</span>
+  </div>
+
+  <!-- PROJECT BRAIN -->
+  <sc-if value="{{ brainOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:60;display:grid;grid-template-rows:48px minmax(0,1fr);background:var(--ground)">
+      <header style="display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;background:var(--panel);border-bottom:1px solid var(--line)">
+        <button onClick="{{ closeBrain }}" title="Back to workspace" style-hover="background:var(--hover-2)" style="width:28px;height:28px;display:grid;place-items:center;background:transparent;border:0;border-radius:6px;cursor:pointer;color:var(--ink)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M8.5 3L4.5 7l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+        <div style="display:flex;align-items:baseline;gap:8px;padding-right:14px;margin-right:4px;border-right:1px solid var(--line);line-height:1">
+          <span style="font-size:14px;font-weight:600;letter-spacing:-.01em">Project Brain</span>
+          <span style="font-size:12px;color:var(--ink-3)">{{ proj.name }}</span>
+        </div>
+        <span style="font-size:12px;color:var(--ink-3)">Built from main @ 9f02b1d · {{ nodeCount }} notes · {{ edgeCount }} links · {{ brainUpdated }}</span>
+        <div style="flex:1"></div>
+        <div style="display:flex;align-items:center;gap:7px;width:220px;height:30px;padding:0 10px;background:var(--panel-2);border:1px solid var(--field-border);border-radius:6px;color:var(--ink-faint);font-size:12px"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.3"></circle><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>Search context<span style="margin-left:auto;font-size:11px">⌘K</span></div>
+        <div style="display:flex;gap:2px;padding:2px;background:var(--hover-2);border-radius:7px">
+          <button style="height:26px;padding:0 12px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:var(--seg-active);color:var(--ink);box-shadow:var(--seg-shadow)">Graph</button>
+          <button style="height:26px;padding:0 12px;border:0;border-radius:5px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;background:transparent;color:var(--ink-3)">Notes</button>
+        </div>
+        <button onClick="{{ updateBrain }}" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;color:var(--ink);font:inherit;font-weight:500"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 11-1.6-3.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path><path d="M12 1.5V4.2H9.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Update</button>
+        <button onClick="{{ closeBrain }}" style-hover="background:var(--primary-hover)" style="height:30px;padding:0 14px;background:var(--primary);border:1px solid var(--primary);border-radius:6px;cursor:pointer;color:var(--on-primary);font:inherit;font-weight:500">Done</button>
+      </header>
+
+      <div style="display:grid;grid-template-columns:248px minmax(0,1fr) 300px;min-height:0">
+        <aside style="display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line);overflow:hidden">
+          <div style="padding:12px 16px 8px;display:flex;align-items:center;font-size:11px;color:var(--ink-3)">Context<span style="margin-left:auto">{{ groupCount }} areas</span></div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:0 8px 12px">
+            <sc-for list="{{ tree }}" as="g" hint-placeholder-count="8">
+              <div style="margin-bottom:2px">
+                <button onClick="{{ g.toggle }}" style-hover="background:var(--hover)" style="width:100%;display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;background:transparent;border:0;border-radius:6px;cursor:pointer;text-align:left;color:var(--ink);font:inherit">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="flex:none;transition:transform .15s ease;transform:rotate({{ g.rot }}deg)"><path d="M3.5 2l3 3-3 3" stroke="var(--ink-4)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span style="width:8px;height:8px;border-radius:2px;background:#3B7DD8"></span>
+                  <span style="flex:1;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.name }}</span>
+                  <span style="font-size:11px;color:var(--ink-3)">{{ g.count }}</span>
+                </button>
+                <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:1px;padding:1px 0 4px 18px">
+                    <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+                      <div onClick="{{ it.select }}" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:5px;cursor:pointer;font-size:12px;background:{{ it.bg }};color:{{ it.fg }}">
+                        <span style="flex:none;min-width:22px;height:18px;padding:0 4px;border-radius:3px;display:grid;place-items:center;font-size:10px;font-weight:600;background:{{ it.chipBg }};color:{{ it.chipFg }}">{{ it.kind }}</span>
+                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.name }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:10px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3);line-height:1.5">New worktrees in {{ proj.name }} get this brain by default. Turn it off per agent in the composer.</div>
+        </aside>
+
+        <main style="position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--ground)">
+          <canvas ref="{{ graphRef }}" style="position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none"></canvas>
+          <div style="position:absolute;left:12px;top:12px;display:flex;flex-wrap:wrap;gap:4px 12px;max-width:420px;padding:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:7px;box-shadow:var(--shadow-pop)">
+            <sc-for list="{{ legend }}" as="lg" hint-placeholder-count="8">
+              <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2)"><span style="width:8px;height:8px;border-radius:50%;background:{{ lg.color }}"></span>{{ lg.label }}</span>
+            </sc-for>
+          </div>
+          <div style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--field-border);border-radius:7px;box-shadow:var(--shadow-pop)">
+            <button onClick="{{ zoomOut }}" title="Zoom out" style-hover="background:var(--hover-2)" style="width:28px;height:26px;display:grid;place-items:center;border:0;border-radius:5px;cursor:pointer;background:transparent;color:var(--ink-2)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg></button>
+            <span style="min-width:44px;text-align:center;font-size:11px;font-weight:500;color:var(--ink-2)">{{ zoomLabel }}</span>
+            <button onClick="{{ zoomIn }}" title="Zoom in" style-hover="background:var(--hover-2)" style="width:28px;height:26px;display:grid;place-items:center;border:0;border-radius:5px;cursor:pointer;background:transparent;color:var(--ink-2)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg></button>
+            <span style="width:1px;height:16px;background:var(--line);margin:0 4px"></span>
+            <button onClick="{{ fitGraph }}" style-hover="background:var(--hover-2)" style="height:26px;padding:0 10px;border:0;border-radius:5px;cursor:pointer;background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:500">Fit</button>
+          </div>
+          <div style="position:absolute;right:12px;bottom:14px;font-size:11px;color:var(--ink-faint)">Drag to pan · scroll to zoom · click a node</div>
+        </main>
+
+        <aside style="display:flex;flex-direction:column;min-height:0;background:var(--panel);border-left:1px solid var(--line);overflow:hidden">
+          <div style="padding:14px 14px 12px;border-bottom:1px solid var(--line)">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="width:26px;height:26px;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff;background:{{ sel.color }}">{{ sel.kind }}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ sel.name }}</div>
+                <div style="font-size:11px;color:var(--ink-3);margin-top:1px">{{ sel.typeLabel }} · {{ sel.group }}</div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto">
+            <div style="padding:12px 14px 14px;border-bottom:1px solid var(--line)">
+              <div style="font-size:12px;font-weight:600;margin-bottom:8px">Summary</div>
+              <div style="padding:8px 10px;background:var(--panel-2);border:1px solid var(--field-border);border-radius:6px;font-size:12px;line-height:1.5;color:var(--ink-2);text-wrap:pretty">{{ sel.summary }}</div>
+            </div>
+            <div style="padding:12px 14px 14px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;font-size:12px;font-weight:600;margin-bottom:6px">Linked<span style="margin-left:auto;font-weight:400;color:var(--ink-3);font-size:11px">{{ sel.linkCount }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <sc-for list="{{ sel.links }}" as="ln" hint-placeholder-count="5">
+                  <div onClick="{{ ln.select }}" style-hover="background:var(--hover)" style="display:flex;align-items:center;gap:8px;height:28px;padding:0 6px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--ink-2)">
+                    <span style="width:7px;height:7px;border-radius:50%;background:{{ ln.color }}"></span>
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ln.name }}</span>
+                    <span style="font-size:11px;color:var(--ink-3)">{{ ln.type }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="padding:12px 14px 14px">
+              <div style="font-size:12px;font-weight:600;margin-bottom:8px">Details</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <sc-for list="{{ sel.fields }}" as="f" hint-placeholder-count="4">
+                  <div style="display:flex;flex-direction:column;gap:4px">
+                    <span style="font-size:11px;color:var(--ink-3)">{{ f.label }}</span>
+                    <div style="display:flex;align-items:center;height:28px;padding:0 8px;background:var(--panel-2);border:1px solid var(--field-border);border-radius:6px;font-size:12px;overflow:hidden;white-space:nowrap">{{ f.value }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="padding:10px;border-top:1px solid var(--line)">
+            <button onClick="{{ togglePin }}" style-hover="background:var(--hover)" style="width:100%;display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;background:var(--panel);border:1px solid var(--field-border);border-radius:6px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;color:var(--ink)">
+              <span style="flex:1;text-align:left">Always include in agent context</span>
+              <span style="position:relative;width:28px;height:16px;border-radius:16px;background:{{ pinBg }}"><span style="position:absolute;top:2px;left:{{ pinX }}px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .15s ease"></span></span>
+            </button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1512,&quot;height&quot;:982},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;}}">
+class Component extends DCLogic {
+  state = { p: 0, dx: 0, anim: false, theme: null, menu: false, active: 0,
+    brain: { 0: 'none', 1: 'ready', 2: 'none' }, updated: { 1: 'Updated 2h ago' }, buildPct: 0, buildStep: '',
+    sideW: 248, rightW: 320, termH: 232, fr: [1, 1, 1], dragging: null,
+    ho: false, hoTarget: 1, hoOpt: { summary: true, diff: true, terms: true, todo: true, brain: true },
+    brainOpen: false, brainSel: 1, useBrain: true, openGroups: { 0: true }, pinned: {}, zoom: 1,
+    tabs: [{ id: 0, a: 2, title: 'Fix Android permission layout shift', main: true, running: true }] };
+  nid = 1;
+  termBodyRef = (el) => { this.termBody = el; };
+  startDrag = (kind, idx) => (e) => {
+    e.preventDefault();
+    const s = this.state, x0 = e.clientX, y0 = e.clientY;
+    const start = { sideW: s.sideW, rightW: s.rightW, termH: s.termH, fr: [...s.fr] };
+    const bodyW = this.termBody ? this.termBody.clientWidth : 1200;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    this.setState({ dragging: kind + (idx ?? '') });
+    document.body.style.cursor = kind === 'term' ? 'row-resize' : 'col-resize';
+    document.body.style.userSelect = 'none';
+    const move = (ev) => {
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (kind === 'side') this.setState({ sideW: clamp(start.sideW + dx, 180, 420) });
+      else if (kind === 'right') this.setState({ rightW: clamp(start.rightW - dx, 240, 520) });
+      else if (kind === 'term') this.setState({ termH: clamp(start.termH - dy, 110, 560) });
+      else if (kind === 'pane') {
+        const tot = start.fr.reduce((a, b) => a + b, 0), d = dx / bodyW * tot, fr = [...start.fr];
+        const min = tot * 0.12, pair = fr[idx] + fr[idx + 1];
+        fr[idx] = clamp(start.fr[idx] + d, min, pair - min); fr[idx + 1] = pair - fr[idx];
+        this.setState({ fr });
+      }
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      document.body.style.cursor = ''; document.body.style.userSelect = ''; this.setState({ dragging: null }); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  TYPES = {
+    root: ['Project', 'P', null], module: ['Module', 'M', '#3B7DD8'], file: ['File', 'F', '#2A9D9F'],
+    symbol: ['Symbol', 'ƒ', '#8A8A84'], decision: ['Decision', 'D', '#D95F6E'], convention: ['Convention', 'C', '#2E9E6B'],
+    api: ['API', 'A', '#D8A23A'], pr: ['PR', 'PR', '#7C5CD6'], doc: ['Doc', 'Dc', '#E0733A'],
+  };
+  HUBS = [
+    ['Onboarding', [['Onboarding.tsx','file'],['StepProgress.tsx','file'],['PermissionIcon.tsx','file'],['Pin step container to fixed inset','decision'],['Permission copy guidelines','doc'],['PR #212 · onboarding v2','pr'],['onboarding.e2e.ts','file']]],
+    ['Notifications', [['push.ts','file'],['tokenRefresh.ts','file'],['Expo push over direct FCM','decision'],['POST /devices','api'],['PR #213 · token refresh','pr'],['Quiet hours rules','doc']]],
+    ['Offline sync', [['queue.ts','file'],['sqlite.ts','file'],['conflict.ts','file'],['Last-write-wins per field','decision'],['GET /sync/delta','api'],['PR #208 · offline sync','pr'],['Retry backoff 2^n, max 5','convention']]],
+    ['Auth', [['session.ts','file'],['useAuth.ts','file'],['Clerk over Supabase auth','decision'],['POST /auth/refresh','api'],['Tokens live in SecureStore','convention']]],
+    ['Design tokens', [['tokens.ts','file'],['theme.ts','file'],['8pt spacing scale','convention'],['No inline hex colours','convention'],['Figma library map','doc']]],
+    ['Navigation', [['router.tsx','file'],['linking.ts','file'],['Expo Router file routes','decision'],['Deep link map','doc']]],
+    ['Paywall', [['Paywall.tsx','file'],['revenuecat.ts','file'],['Annual default plan','decision'],['GET /entitlements','api'],['PR #199 · widgets + paywall','pr']]],
+    ['CI & Release', [['eas.json','file'],['detox.config.js','file'],['Release train Tue / Thu','convention'],['EAS preview on every PR','decision'],['PR #205 · Expo SDK 52','pr']]],
+    ['Conventions', [['Biome over ESLint','convention'],['Zustand for client state','decision'],['Tests live next to source','convention'],['Conventional commits','convention']]],
+    ['Analytics', [['track.ts','file'],['Event names: object_action','convention'],['PostHog cloud EU','decision']]],
+  ];
+  SUM = {
+    root: 'Project root. Everything the brain knows about this repo on main, rolled up by feature area.',
+    module: 'Feature area rollup linking its files, decisions, endpoints and merged work.',
+    file: 'Source summary: exports, responsibilities, dependents and recent churn.',
+    symbol: 'Signature, call sites and test coverage for this function.',
+    decision: 'Architectural decision captured from PR history and review threads. Agents treat it as a hard constraint unless you override it.',
+    convention: 'Team convention inferred from code and config. Applied automatically to every generated edit.',
+    api: 'Endpoint contract: request and response shapes, auth requirements and known error codes.',
+    pr: 'Merged pull request: summary, reviewer notes and the files it touched.',
+    doc: 'Product or design note imported from the repo docs folder.',
+  };
+  graph = (() => {
+    let seed = 11; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const SYM = ['init', 'use', 'handle', 'map', 'parse', 'validate', 'sync', 'render', 'flush', 'measure'];
+    const nodes = [], edges = [];
+    const add = (name, type, g, x, y) => { nodes.push({ id: nodes.length, name, type, g, x, y, vx: 0, vy: 0, tok: 200 + Math.floor(rnd() * 2800) }); return nodes.length - 1; };
+    const root = add('tempo-mobile', 'root', -1, 0, 0);
+    this.HUBS.forEach(([hn, items], gi) => {
+      const a = gi / this.HUBS.length * Math.PI * 2, hx = Math.cos(a) * 220, hy = Math.sin(a) * 220;
+      const h = add(hn, 'module', gi, hx, hy); edges.push([root, h, 'hub']);
+      items.forEach(([n, t]) => {
+        const c = add(n, t, gi, hx + (rnd() - .5) * 90, hy + (rnd() - .5) * 90); edges.push([h, c, 'child']);
+        if (t === 'file') { const base = n.split('.')[0], k = 2 + Math.floor(rnd() * 3);
+          for (let i = 0; i < k; i++) { const s = add(base + '.' + SYM[Math.floor(rnd() * SYM.length)] + '()', 'symbol', gi, hx + (rnd() - .5) * 120, hy + (rnd() - .5) * 120); edges.push([c, s, 'sym']); } }
+      });
+    });
+    const pool = nodes.filter(n => n.type !== 'root' && n.type !== 'module');
+    for (let i = 0; i < 46; i++) { const a = pool[Math.floor(rnd() * pool.length)], b = pool[Math.floor(rnd() * pool.length)]; if (a.g !== b.g) edges.push([a.id, b.id, 'cross']); }
+    const nb = nodes.map(() => new Set()); edges.forEach(([a, b]) => { nb[a].add(b); nb[b].add(a); });
+    return { nodes, edges, nb };
+  })();
+  view = { z: 1, px: 0, py: 0 };
+  colorOf = (n) => this.TYPES[n.type][2];
+  graphRef = (el) => { if (el === this.cv) return; this.stopGraph(); this.cv = el; if (el) this.startGraph(); };
+  stopGraph() { cancelAnimationFrame(this.raf); this.ro && this.ro.disconnect(); this.ro = null; }
+  simTick(alpha) {
+    const { nodes, edges } = this.graph, N = nodes.length;
+    for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      const a = nodes[i], b = nodes[j]; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 1;
+      if (d2 > 90000) continue; const d = Math.sqrt(d2), f = 900 * alpha / Math.max(d2, 36);
+      dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
+    }
+    const L = { hub: 200, child: 58, sym: 24, cross: 150 }, K = { hub: .03, child: .08, sym: .12, cross: .006 };
+    edges.forEach(([ai, bi, k]) => {
+      const a = nodes[ai], b = nodes[bi], dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, f = (d - L[k]) / d * K[k] * alpha * 4;
+      a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
+    });
+    nodes.forEach(n => { if (n === this.dragN) { n.vx = n.vy = 0; return; } n.vx -= n.x * .002 * alpha; n.vy -= n.y * .002 * alpha; n.vx *= .6; n.vy *= .6; n.x += n.vx; n.y += n.vy; });
+  }
+  fit = () => {
+    const cv = this.cv; if (!cv) return; const { nodes } = this.graph;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; nodes.forEach(n => { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x); y1 = Math.max(y1, n.y); });
+    const w = cv.clientWidth, h = cv.clientHeight, z = Math.min(w / (x1 - x0 + 160), h / (y1 - y0 + 160), 2.4);
+    this.view = { z, px: -(x0 + x1) / 2 * z, py: -(y0 + y1) / 2 * z }; this.dirty = true; this.setState({ zoom: z });
+  };
+  zoomBy = (f) => { const v = this.view, z = Math.max(.3, Math.min(4, v.z * f)); v.px *= z / v.z; v.py *= z / v.z; v.z = z; this.dirty = true; this.setState({ zoom: z }); };
+  selectNode = (id, center) => {
+    this.setState({ brainSel: id });
+    if (center && this.cv) { const n = this.graph.nodes[id]; this.view.px = -n.x * this.view.z; this.view.py = -n.y * this.view.z; }
+    this.dirty = true;
+  };
+  startGraph() {
+    const cv = this.cv, ctx = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+    const size = () => { cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr; this.dirty = true; };
+    this.ro = new ResizeObserver(size); this.ro.observe(cv); size();
+    if (!this.settled) { for (let i = 0; i < 260; i++) this.simTick(1 - i / 300); this.settled = true; }
+    this.alpha = .15; this.fit();
+    const toW = (e) => { const r = cv.getBoundingClientRect(), v = this.view; return [(e.clientX - r.left - r.width / 2 - v.px) / v.z, (e.clientY - r.top - r.height / 2 - v.py) / v.z]; };
+    const hit = (e) => { const [x, y] = toW(e); let best = null, bd = 1e9; this.graph.nodes.forEach(n => { const d = (n.x - x) ** 2 + (n.y - y) ** 2, r = this.rad(n) + 5 / this.view.z; if (d < r * r && d < bd) { bd = d; best = n; } }); return best; };
+    let down = null;
+    cv.onpointerdown = (e) => { cv.setPointerCapture(e.pointerId); const n = hit(e); down = { x: e.clientX, y: e.clientY, n, px: this.view.px, py: this.view.py, moved: 0 }; if (n) { this.dragN = n; this.alpha = .4; } cv.style.cursor = 'grabbing'; };
+    cv.onpointermove = (e) => {
+      if (down) { const dx = e.clientX - down.x, dy = e.clientY - down.y; down.moved = Math.max(down.moved, Math.abs(dx) + Math.abs(dy));
+        if (down.n) { const [x, y] = toW(e); down.n.x = x; down.n.y = y; this.alpha = .4; } else { this.view.px = down.px + dx; this.view.py = down.py + dy; }
+        this.dirty = true; return; }
+      const n = hit(e); if (n !== this.hover) { this.hover = n; this.dirty = true; cv.style.cursor = n ? 'pointer' : 'grab'; }
+    };
+    cv.onpointerup = () => { if (down && down.n && down.moved < 4) this.selectNode(down.n.id); down = null; this.dragN = null; cv.style.cursor = this.hover ? 'pointer' : 'grab'; };
+    cv.onpointerleave = () => { if (!down && this.hover) { this.hover = null; this.dirty = true; } };
+    cv.onwheel = (e) => { e.preventDefault(); const r = cv.getBoundingClientRect(), v = this.view, mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2;
+      const z = Math.max(.3, Math.min(4, v.z * Math.exp(-e.deltaY * .0015))); v.px = mx - (mx - v.px) * z / v.z; v.py = my - (my - v.py) * z / v.z; v.z = z; this.dirty = true;
+      clearTimeout(this.zt); this.zt = setTimeout(() => this.setState({ zoom: z }), 60); };
+    const loop = () => {
+      if (this.alpha > .01) { this.simTick(this.alpha); this.alpha *= .97; this.dirty = true; }
+      if (this.dirty) { this.draw(ctx, dpr); this.dirty = false; }
+      this.raf = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+  rad(n) { return n.type === 'root' ? 10 : n.type === 'module' ? 7 : n.type === 'symbol' ? 2.6 : 4.2; }
+  draw(ctx, dpr) {
+    const cv = this.cv, cs = getComputedStyle(cv), V = (k) => cs.getPropertyValue(k).trim();
+    const ink = V('--ink'), ink2 = V('--ink-2'), ink3 = V('--ink-3'), accent = V('--accent'), ground = V('--ground');
+    const { nodes, edges, nb } = this.graph, v = this.view, w = cv.clientWidth, h = cv.clientHeight;
+    const focus = this.hover ? this.hover.id : this.state.brainSel, fset = focus != null ? nb[focus] : null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    ctx.translate(w / 2 + v.px, h / 2 + v.py); ctx.scale(v.z, v.z);
+    const dark = V('color-scheme') === 'dark';
+    edges.forEach(([a, b, k]) => {
+      const on = focus != null && (a === focus || b === focus);
+      ctx.strokeStyle = on ? accent : ink3; ctx.globalAlpha = on ? .9 : (focus != null ? .12 : (k === 'cross' ? .18 : .32));
+      ctx.lineWidth = (on ? 1.4 : .8) / v.z; ctx.beginPath(); ctx.moveTo(nodes[a].x, nodes[a].y); ctx.lineTo(nodes[b].x, nodes[b].y); ctx.stroke();
+    });
+    nodes.forEach(n => {
+      const near = focus == null || n.id === focus || fset.has(n.id), r = this.rad(n);
+      ctx.globalAlpha = near ? 1 : .22; ctx.fillStyle = this.colorOf(n) || ink;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
+      if (n.id === this.state.brainSel) { ctx.strokeStyle = accent; ctx.lineWidth = 2 / v.z; ctx.beginPath(); ctx.arc(n.x, n.y, r + 3.5 / v.z, 0, Math.PI * 2); ctx.stroke(); }
+    });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    nodes.forEach(n => {
+      const inF = focus != null && (n.id === focus || fset.has(n.id)), big = n.type === 'root' || n.type === 'module';
+      if (!(big || inF || (v.z > 1.7 && n.type !== 'symbol') || v.z > 2.8)) return;
+      ctx.globalAlpha = focus == null || inF ? 1 : .35;
+      ctx.font = (big ? '600 ' : '') + (big ? 12 : 11) / v.z + 'px -apple-system,BlinkMacSystemFont,system-ui,sans-serif';
+      const y = n.y + this.rad(n) + 4 / v.z;
+      ctx.lineWidth = 3 / v.z; ctx.strokeStyle = ground; ctx.strokeText(n.name, n.x, y);
+      ctx.fillStyle = big ? ink : ink2; ctx.fillText(n.name, n.x, y);
+    });
+    ctx.globalAlpha = 1;
+  }
+  build = (label) => {
+    const p = this.state.p; clearInterval(this.bt);
+    this.setState(s => ({ brain: { ...s.brain, [p]: 'building' }, buildPct: 0, buildStep: label }));
+    const steps = ['Reading main @ 9f02b1d…', 'Parsing 412 files…', 'Mining 214 PRs…', 'Linking decisions…', 'Embedding notes…'];
+    this.bt = setInterval(() => this.setState(s => {
+      const pct = Math.min(100, s.buildPct + 2 + Math.floor(Math.random() * 4));
+      if (pct >= 100) { clearInterval(this.bt); return { buildPct: 100, brain: { ...s.brain, [p]: 'ready' }, updated: { ...s.updated, [p]: 'Updated just now' } }; }
+      return { buildPct: pct, buildStep: steps[Math.min(steps.length - 1, Math.floor(pct / 20))] };
+    }), 70);
+  };
+  agents = [
+    ['Super', 'S', 'transparent', 'var(--ink)', 'inset 0 0 0 1.5px var(--ink-3)'],
+    ['Codex', 'Cx', '#3B7DD8'], ['Claude Code', 'CC', '#E0733A'], ['OpenCode', 'OC', '#5E5E58'],
+    ['Pi', 'Pi', '#D8A23A'], ['Oh My Pi', 'π', '#7C5CD6'], ['Grok', 'G', '#3D3D3A'],
+    ['Cursor', 'Cu', '#706F6A'], ['Antigravity', 'A', '#2A9D9F'],
+    ['Browser', '◎', 'var(--hover-2)', 'var(--ink-2)', '', 'tool'], ['Terminal', '›_', 'var(--hover-2)', 'var(--ink-2)', '', 'tool'],
+  ];
+  addAgent = (a) => {
+    const id = this.nid++;
+    this.setState(s => ({ menu: false, active: id, tabs: [...s.tabs, { id, a, title: this.agents[a][0], running: false }] }));
+  };
+  componentDidMount() {
+    this.onKey = (e) => {
+      if (!this.state.menu) return;
+      if (e.key === 'Escape') this.setState({ menu: false });
+      const n = parseInt(e.key, 10); if (n >= 1 && n <= 9) this.addAgent(n - 1);
+    };
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); }
+  acc = 0;
+  go = (p) => { const n = this.projects.length; p = (p + n) % n; if (p !== this.state.p) this.setState({ p, dx: 0 }); };
+  onWheel = (e) => {
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || this.lock) return;
+    this.acc += e.deltaX;
+    clearTimeout(this.t); this.t = setTimeout(() => { this.acc = 0; this.setState({ dx: 0 }); }, 160);
+    if (Math.abs(this.acc) > 110) {
+      const dir = this.acc > 0 ? 1 : -1; this.acc = 0; this.lock = true;
+      this.setState({ dx: -dir * 60, anim: true });
+      setTimeout(() => { this.go(this.state.p + dir); this.setState({ dx: dir * 40 }); requestAnimationFrame(() => this.setState({ dx: 0 })); }, 140);
+      setTimeout(() => { this.lock = false; this.setState({ anim: false }); }, 520);
+    } else this.setState({ dx: Math.max(-70, Math.min(70, -this.acc * 0.5)) });
+  };
+  projects = [
+    { name: 'tempo-mobile', letter: 'T', color: '#3B7DD8', sub: 'Expo · 7 worktrees', wts: [
+      ['feat/onboarding-v2','+1284','−212','#212 · 3m ago','live',1],
+      ['app/offline-sync','+3362','−2334','#208 · 12m ago','pr',0],
+      ['fix/push-token-refresh','+86','−41','#213 · 1h ago','pr',0,1],
+      ['chore/expo-sdk-52','+410','−388','#205 · 26m ago','warn',0],
+      ['web/checkout-parity','+702','−55','2h ago','plain',0],
+      ['feat/widgets-ios','+5118','−287','#199 · 1w ago','warn',0],
+      ['perf/list-virtualize','','','18h ago','plain',0],
+    ]},
+    { name: 'fleet-web', letter: 'F', color: '#2E9E6B', sub: 'Next.js · 5 worktrees', wts: [
+      ['feat/submissions','+6834','−51','#177 · 5d ago','pr',0,1],
+      ['fix/analytics-charts','+380','−286','#187 · 3d ago','pr',0],
+      ['web/multi-brand-invites','+6690','−138','#191 · 2m ago','live',1],
+      ['kick-whitelabel','+5170','−2877','#190 · 1d ago','warn',0],
+      ['tiktok-oauth','+14493','−491','1w ago','plain',0],
+    ]},
+    { name: 'tokens-api', letter: 'K', color: '#D8A23A', sub: 'Go · 3 worktrees', wts: [
+      ['feat/rolling-30d','+912','−140','#64 · 2h ago','pr',1],
+      ['fix/rate-limit-burst','+44','−12','#66 · 5h ago','pr',0],
+      ['main','','','1d ago','plain',0],
+    ]},
+  ];
+  renderVals() {
+    const s = this.state;
+    const theme = s.theme ?? this.props.theme ?? 'dark';
+    const proj = this.projects[s.p];
+    const L = (t, c = 'var(--ink-2)') => ({ t, c });
+    const OK = 'M2 5.2l2 2 4-4.4', RUN = 'M5 2.5v2.7l1.6 1';
+    const tabOf = (t) => { const [name, mono, color] = this.agents[t.a]; return { agent: name, mono, color: color.startsWith('#') ? color : '#5E5E58' }; };
+    const act = s.tabs.find(t => t.id === s.active) || s.tabs[0];
+    const names = [...new Set(s.tabs.filter(t => t.id !== act.id).map(t => this.agents[t.a][0]))];
+    const bs = s.brain[s.p] || 'none', G = this.graph;
+    const T = (n) => this.TYPES[n.type];
+    const sn = G.nodes[s.brainSel] || G.nodes[0];
+    const links = [...G.nb[sn.id]].map(i => G.nodes[i]);
+    const pinned = s.pinned[sn.id] ?? (sn.type === 'decision' || sn.type === 'convention');
+    const totalTok = G.nodes.reduce((a, n) => a + n.tok, 0);
+    const brainVals = {
+      brainNone: bs === 'none', brainBuilding: bs === 'building', brainReady: bs === 'ready',
+      buildPct: s.buildPct, buildLabel: s.buildStep || 'Building brain…',
+      brainUpdated: s.updated[s.p] || 'Updated just now',
+      createBrain: () => this.build('Reading main…'), updateBrain: () => { this.setState({ brainOpen: false }); this.build('Diffing main…'); },
+      openBrain: () => this.setState({ brainOpen: true }), closeBrain: () => this.setState({ brainOpen: false }),
+      brainOpen: s.brainOpen && bs === 'ready',
+      nodeCount: G.nodes.length, edgeCount: G.edges.length, groupCount: this.HUBS.length,
+      brainTokens: Math.round(totalTok / 1000) + 'k tokens, compressed to 18k',
+      toggleUseBrain: () => this.setState({ useBrain: !s.useBrain }),
+      useBrainBg: s.useBrain ? 'var(--sel-bg)' : 'var(--hover-2)', useBrainFg: s.useBrain ? 'var(--sel-text)' : 'var(--ink-3)',
+      useBrainDot: s.useBrain ? 'var(--accent)' : 'var(--ink-disabled)',
+      switchBg: s.useBrain ? 'var(--accent)' : 'var(--field-border)', switchX: s.useBrain ? 14 : 2,
+      graphRef: this.graphRef, zoomIn: () => this.zoomBy(1.25), zoomOut: () => this.zoomBy(.8), fitGraph: this.fit,
+      zoomLabel: Math.round(s.zoom * 100) + '%',
+      legend: Object.entries(this.TYPES).filter(([k]) => k !== 'root').map(([, [label, , color]]) => ({ label, color })),
+      tree: this.HUBS.map(([name], gi) => {
+        const items = G.nodes.filter(n => n.g === gi && n.type !== 'symbol');
+        const open = !!s.openGroups[gi];
+        return { name, count: items.length - 1, open, rot: open ? 90 : 0,
+          toggle: () => this.setState(st => ({ openGroups: { ...st.openGroups, [gi]: !st.openGroups[gi] } })),
+          items: items.map(n => { const on = n.id === sn.id; return { name: n.name, kind: T(n)[1],
+            bg: on ? 'var(--sel-bg)' : 'transparent', fg: on ? 'var(--ink)' : 'var(--ink-2)',
+            chipBg: on ? 'var(--sel-chip)' : 'var(--hover-2)', chipFg: on ? 'var(--sel-text)' : 'var(--ink-3)',
+            select: () => this.selectNode(n.id, true) }; }) };
+      }),
+      sel: { name: sn.name, kind: T(sn)[1], color: T(sn)[2] || '#5E5E58', typeLabel: T(sn)[0],
+        group: sn.g < 0 ? 'root' : this.HUBS[sn.g][0], summary: this.SUM[sn.type],
+        linkCount: links.length, links: links.slice(0, 8).map(n => ({ name: n.name, color: T(n)[2] || 'var(--ink)', type: T(n)[0], select: () => this.selectNode(n.id, true) })),
+        fields: [{ label: 'Source', value: 'main @ 9f02b1d' }, { label: 'Size', value: (sn.tok / 1000).toFixed(1) + 'k tokens' }, { label: 'Last changed', value: ['2h ago', '1d ago', '3d ago', '1w ago'][sn.id % 4] }, { label: 'Used by agents', value: (sn.id * 7) % 23 + ' times' }] },
+      togglePin: () => this.setState(st => ({ pinned: { ...st.pinned, [sn.id]: !pinned } })),
+      pinBg: pinned ? 'var(--accent)' : 'var(--field-border)', pinX: pinned ? 14 : 2,
+    };
+    if (this.dirty === false && this.cv) this.dirty = true;
+    const actTab = s.tabs.find(t => t.id === s.active) || s.tabs[0];
+    const pct = actTab.main ? 91 : actTab.from ? 12 : 2;
+    const OPTS = [
+      ['summary', 'Conversation summary', 'Goals, decisions and what was tried', 6.2],
+      ['diff', 'Changed files & diff', 'Onboarding.tsx, StepProgress.tsx · +18 −9', 3.4],
+      ['terms', 'Terminal & test state', 'metro, detox ios.sim, adb logcat · last 200 lines', 4.1],
+      ['todo', 'Open tasks', 'Re-run iOS e2e · mark PR #212 ready', 0.4],
+      ['brain', 'Project Brain', bs === 'ready' ? 'Linked notes for Onboarding + Notifications' : 'No brain yet for this project', 2.8],
+    ];
+    const on = (k) => s.hoOpt[k] && !(k === 'brain' && bs !== 'ready');
+    const hoSum = OPTS.reduce((a, o) => a + (on(o[0]) ? o[3] : 0), 0);
+    const CHECK = 'M2 5.2l2 2 4-4.4';
+    const handoffVals = {
+      ctxPct: pct, ctxLabel: actTab.main ? '182k / 200k' : actTab.from ? '24k / 200k' : '4k / 200k',
+      ctxColor: pct > 85 ? 'var(--err)' : 'var(--ink-3)', ctxText: pct > 85 ? 'var(--err)' : 'var(--ink-3)',
+      ctxWarn: !!actTab.main,
+      hoOpen: s.ho, hoBtnBg: s.ho ? 'var(--hover-2)' : 'var(--panel)',
+      toggleHandoff: () => this.setState({ ho: !s.ho, menu: false }), closeHandoff: () => this.setState({ ho: false }),
+      hoAgents: this.agents.slice(0, 9).map(([name, mono, color, fg, ring], i) => ({ name, mono, color, monoFg: fg || '#fff', ring: ring || 'none',
+        bg: i === s.hoTarget ? 'var(--sel-bg)' : 'transparent', border: i === s.hoTarget ? 'var(--sel-chip)' : 'var(--line-soft)',
+        pick: () => this.setState({ hoTarget: i }) })),
+      hoOpts: OPTS.map(([k, label, sub, tok]) => ({ label, sub, tok: tok + 'k',
+        boxBg: on(k) ? 'var(--accent)' : 'transparent', boxRing: on(k) ? 'none' : 'inset 0 0 0 1.5px var(--field-border)', check: on(k) ? CHECK : '',
+        toggle: () => { if (k === 'brain' && bs !== 'ready') return; this.setState(st => ({ hoOpt: { ...st.hoOpt, [k]: !st.hoOpt[k] } })); } })),
+      hoTotal: hoSum.toFixed(1) + 'k tokens',
+      hoTargetName: this.agents[s.hoTarget][0],
+      doHandoff: () => {
+        const id = this.nid++, fromName = this.agents[actTab.a][0];
+        const items = OPTS.filter(o => on(o[0])).map(o => ({ label: o[1], tok: o[3] + 'k' }));
+        this.setState(st => ({ ho: false, active: id, tabs: [...st.tabs, { id, a: st.hoTarget, title: actTab.title, running: false,
+          from: { name: fromName + ' · ' + actTab.title, items, tok: hoSum.toFixed(1) + 'k tokens' } }] }));
+      },
+      carried: !!actTab.from, carriedFrom: actTab.from ? actTab.from.name : '',
+      carriedItems: actTab.from ? actTab.from.items : [], carriedTok: actTab.from ? actTab.from.tok : '',
+    };
+    const dg = s.dragging, hb = (k) => dg === k ? 'var(--accent)' : 'transparent';
+    const sizeVals = {
+      sideW: s.sideW, rightW: s.rightW, termH: s.termH,
+      sideHandleX: s.sideW - 3, rightHandleX: s.rightW - 2,
+      termCols: s.fr.map(v => 'minmax(0,' + v.toFixed(3) + 'fr)').join(' '),
+      dragSide: this.startDrag('side'), dragRight: this.startDrag('right'), dragTerm: this.startDrag('term'),
+      dragSideBg: hb('side'), dragRightBg: hb('right'), dragTermBg: hb('term'),
+      termBodyRef: this.termBodyRef,
+      resetSizes: () => this.setState({ sideW: 248, rightW: 320, termH: 232, fr: [1, 1, 1] }),
+    };
+    return {
+      ...brainVals, ...handoffVals, ...sizeVals,
+      agentTabs: s.tabs.map(t => ({ ...tabOf(t), title: t.title, running: t.running,
+        fg: t.id === act.id ? 'var(--ink)' : 'var(--ink-3)', fw: t.id === act.id ? 500 : 400,
+        bar: t.id === act.id ? 'var(--accent)' : 'transparent',
+        select: () => this.setState({ active: t.id }),
+        close: (e) => { e.stopPropagation(); if (s.tabs.length === 1) return;
+          const rest = s.tabs.filter(x => x.id !== t.id); this.setState({ tabs: rest, active: t.id === act.id ? rest[rest.length - 1].id : s.active }); } })),
+      activeTab: tabOf(act), isFresh: !act.main, isMain: !!act.main,
+      otherAgents: names.length ? names.join(', ') : 'no other agents',
+      agentCount: s.tabs.length + (s.tabs.length === 1 ? ' agent' : ' agents'),
+      menuOpen: s.menu, menuLeft: Math.min(4 + s.tabs.length * 240, 560) - 20,
+      addBg: s.menu ? 'var(--hover-2)' : 'transparent',
+      toggleMenu: () => this.setState({ menu: !s.menu }), closeMenu: () => this.setState({ menu: false }),
+      quickAdd: () => this.addAgent(2),
+      agentMenu: this.agents.map(([name, mono, color, fg, ring, kind], i) => ({
+        name, mono, color, monoFg: fg || '#fff', ring: ring || 'none', key: kind ? '' : i + 1,
+        hint: i === 2 ? 'default' : '', bg: i === 2 ? 'var(--hover-2)' : 'transparent',
+        pick: () => this.addAgent(i) })),
+      themeClass: theme === 'dark' ? 'theme-dark' : 'theme-light',
+      isDark: theme === 'dark', isLight: theme !== 'dark',
+      toggleTheme: () => this.setState({ theme: theme === 'dark' ? 'light' : 'dark' }),
+      proj, next: () => this.go(s.p + 1),
+      worktrees: proj.wts.map(([branch, add, del, meta, k, active, star], i) => ({
+        i: i + 1, branch, add, del, meta, star: !!star,
+        ic: k === 'live' ? 'var(--ok)' : k === 'pr' ? 'var(--accent)' : 'var(--ink-3)',
+        warn: k === 'warn', live: k === 'live',
+        bg: active ? 'var(--sel-bg)' : 'transparent',
+        fg: active ? 'var(--ink)' : 'var(--ink-2)', fw: active ? 500 : 400,
+      })),
+      dx: s.dx, op: 1 - Math.abs(s.dx) / 140,
+      tr: s.anim ? 'transform .18s ease, opacity .18s ease' : 'none',
+      onWheel: this.onWheel,
+      dots: this.projects.map((_, i) => ({ w: i === s.p ? 16 : 6, c: i === s.p ? 'var(--ink)' : 'var(--ink-disabled)', go: () => this.go(i) })),
+      tools: [
+        { kind: 'Read', arg: 'src/screens/Onboarding.tsx', meta: '412 lines' },
+        { kind: 'Edit', arg: 'src/screens/Onboarding.tsx', meta: '+18 −9' },
+        { kind: 'Bash', arg: 'pnpm detox test -c android.emu onboarding', meta: '7/7 passed · 41s' },
+      ],
+      checks: [
+        ['Typecheck','tsc --noEmit · web + mobile','18s','ok'],
+        ['Lint & format','biome check · 0 issues','6s','ok'],
+        ['Unit tests','jest · 51 passed','42s','ok'],
+        ['E2E · Android','detox android.emu · 7/7','41s','ok'],
+        ['E2E · iOS','detox ios.sim · 4/7 running','38s','run'],
+        ['EAS build preview','ios + android · 2 artifacts','3m 12s','ok'],
+        ['Bundle size','+1.8 kB · under budget','9s','ok'],
+      ].map(([name, sub, time, k]) => ({ name, sub, time, path: k === 'ok' ? OK : RUN, tint: k === 'ok' ? '#2E9E6B' : '#D8A23A', bg: k === 'run' ? 'var(--hover)' : 'transparent' })),
+      terms: (() => [
+        { name: 'metro', sub: ':8081', dot: '#3B7DD8', lines: [
+          L('› Metro waiting on exp://192.168.1.8:8081', 'var(--ink-3)'), L('iOS Bundled 212ms index.js (1 module)', 'var(--ok)'), L('LOG  [onboarding] step → 2'), L('LOG  [perm] push: undetermined'), L('WARN Sending `onAnimatedValueUpdate` with no listeners', 'var(--warn)'), L('LOG  [onboarding] layout measured h=640') ] },
+        { name: 'detox', sub: 'ios.sim', dot: '#D8A23A', lines: [
+          L('onboarding.e2e.ts', 'var(--ink)'), L('  ✓ shows welcome step (1.2s)', 'var(--ok)'), L('  ✓ advances to permissions (0.8s)', 'var(--ok)'), L('  ✓ no layout shift after dialog (2.1s)', 'var(--ok)'), L('  ● requests push permission…', 'var(--warn)'), L('  ○ completes onboarding', 'var(--ink-3)') ] },
+        { name: 'adb logcat', sub: 'Pixel 9', dot: '#2E9E6B', lines: [
+          L('I ReactNativeJS: Running "main"'), L('D OnboardingScreen: onLayout 412x915'), L('I Permission: POST_NOTIFICATIONS granted', 'var(--ok)'), L('D Choreographer: 0 skipped frames'), L('W FirebaseMessaging: token refresh pending', 'var(--warn)'), L('$ █', 'var(--ink)') ] },
+      ])().map((t, i, arr) => ({ ...t, hasHandle: i < arr.length - 1, drag: this.startDrag('pane', i), handleBg: s.dragging === 'pane' + i ? 'var(--accent)' : 'transparent' })),
+    };
+  }
+}
+</script>
+</body>
+</html>

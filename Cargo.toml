@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ishan-crd/IDE-by-Insyd"
+
+[workspace.dependencies]
+# UI: gpui-component pins the exact gpui-pre snapshot. Bump both together.
+gpui = { package = "gpui-pre", version = "=0.3.6" }
+gpui-component = { version = "=0.6.6", default-features = false }
+
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+parking_lot = "0.12"
+flume = "0.11"
+smol = "2"
+rusqlite = { version = "0.40", features = ["bundled"] }
+alacritty_terminal = "0.26"
+agent-client-protocol = "2.2"
+notify = "8"
+ignore = "0.4"
+dirs = "6"
+
+insyde-core = { path = "crates/insyde-core" }
+insyde-theme = { path = "crates/insyde-theme" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

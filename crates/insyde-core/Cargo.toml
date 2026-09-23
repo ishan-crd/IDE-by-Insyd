@@ -1,0 +1,15 @@
+[package]
+name = "insyde-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "InsyDE core: git, worktrees, terminals, agents (ACP), project brain, persistence. No UI dependency."
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+rusqlite.workspace = true
+dirs.workspace = true
