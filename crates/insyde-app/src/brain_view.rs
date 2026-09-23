@@ -33,7 +33,10 @@ impl BrainHandle {
     }
     pub fn digest(&self, project: &str, task: &str) -> String {
         let g = self.graph.read();
-        self.brain.digest(&g, project, task, 18_000)
+        let budget = insyde_core::settings::get()
+            .brain_budget_tokens
+            .clamp(2_000, 100_000) as usize;
+        self.brain.digest(&g, project, task, budget)
     }
 }
 

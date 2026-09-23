@@ -84,6 +84,10 @@ impl Workspace {
                     .items_center()
                     .gap(px(4.))
                     .child(
+                        ui::icon_button("open-settings", "settings", 15., t)
+                            .on_click(cx.listener(|this, _, w, cx| this.open_settings(w, cx))),
+                    )
+                    .child(
                         ui::icon_button("add-project", "folder", 14., t).on_click(cx.listener(
                             |this, _, w, cx| {
                                 if this.connect_form.is_some() {
@@ -282,7 +286,11 @@ impl Workspace {
                                             ))
                                             .on_click(cx.listener(move |this, _, _, cx| {
                                                 cx.stop_propagation();
-                                                if this.confirm_delete.as_ref() == Some(&path) {
+                                                let confirm = insyde_core::settings::get()
+                                                    .confirm_worktree_delete;
+                                                if !confirm
+                                                    || this.confirm_delete.as_ref() == Some(&path)
+                                                {
                                                     this.delete_worktree(path.clone(), cx);
                                                 } else {
                                                     this.confirm_delete = Some(path.clone());

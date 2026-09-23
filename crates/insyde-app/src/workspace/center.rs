@@ -142,7 +142,12 @@ impl Workspace {
                         .child(icon("plus", 12., t.ink_2))
                         .child("Agent")
                         .on_click(cx.listener(|this, e: &gpui::ClickEvent, w, cx| {
-                            this.add_agent(2, e.modifiers().platform, w, cx)
+                            this.add_agent(
+                                Self::default_agent_index(),
+                                e.modifiers().platform,
+                                w,
+                                cx,
+                            )
                         })),
                 )
                 .child(

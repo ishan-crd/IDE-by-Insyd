@@ -25,6 +25,10 @@ pub enum ChatEvent {
     /// Running state, usage, or permission changed (tab/sidebar indicators).
     Status,
     OpenDiff,
+    /// A turn finished (for notifications).
+    TurnDone,
+    /// The agent is waiting for a permission decision.
+    NeedsPermission,
     Handoff,
     CreateBrain,
 }
@@ -74,6 +78,7 @@ pub struct ChatView {
     pub unseen: bool,
     pub others: String,
     last_running: bool,
+    last_perm: bool,
     /// A prompt was sent and its turn hasn't finished yet (covers agent start-up).
     awaiting: bool,
     focus: FocusHandle,
@@ -172,7 +177,7 @@ impl ChatView {
             list,
             count: 0,
             version: u64::MAX,
-            use_brain: true,
+            use_brain: insyde_core::settings::get().brain_by_default,
             brain: init.brain,
             carried: init.carried,
             sent_first: resumed,
@@ -181,11 +186,15 @@ impl ChatView {
             unseen: false,
             others: String::new(),
             last_running: false,
+            last_perm: false,
             awaiting: false,
             focus: cx.focus_handle(),
             _subs: subs,
         };
         this.sync(cx);
+        if insyde_core::settings::get().start_agents_eagerly && !resumed {
+            this.ensure_session();
+        }
         this
     }
 
@@ -230,9 +239,14 @@ impl ChatView {
         if n > 0 {
             self.list.remeasure_items(n - 1..n);
         }
+        if has_perm && !self.last_perm {
+            cx.emit(ChatEvent::NeedsPermission);
+        }
+        self.last_perm = has_perm;
         if running != self.last_running || has_perm {
             if self.last_running && !running {
                 self.unseen = true;
+                cx.emit(ChatEvent::TurnDone);
             }
             if running && !self.last_running {
                 self.start_ticker(cx);
@@ -268,12 +282,18 @@ impl ChatView {
         if self.session.is_some() {
             return true;
         }
-        let Some(cmd) = AgentSpec::get(self.agent).acp else {
+        let spec = AgentSpec::get(self.agent);
+        let Some(cmd) = spec.acp else {
             return false;
         };
+        // A launch-command override from settings wins over the registry.
+        let launch = insyde_core::settings::get()
+            .agent_command(spec.key)
+            .map(|(program, args)| insyde_core::agents::acp::Launch { program, args })
+            .unwrap_or_else(|| cmd.into());
         let persist = self.session_row.map(|id| (self.store.clone(), id));
         self.session = Some(AcpSession::start(
-            cmd,
+            launch,
             self.worktree.clone(),
             self.acp_id.take(),
             self.transcript.clone(),
@@ -846,6 +866,7 @@ impl Render for ChatView {
         let _ = &window;
 
         let mut main = div()
+            .text_size(px(insyde_core::settings::get().chat_text_size))
             .size_full()
             .flex()
             .flex_col()
@@ -996,7 +1017,7 @@ impl Render for ChatView {
                 );
             }
         }
-        if pct >= 85 && !fresh {
+        if pct >= insyde_core::settings::get().context_warning_pct && !fresh {
             dock = dock.child(
                 div()
                     .mb(px(8.))

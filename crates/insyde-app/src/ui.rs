@@ -189,6 +189,9 @@ pub fn dot(color: Hsla, size: f32) -> Div {
 
 /// The design's `pulse` keyframes (opacity 1 → .35 → 1 over 1.4s).
 pub fn pulse(id: impl Into<ElementId>, el: Div) -> AnyElement {
+    if crate::prefs::reduce_motion() {
+        return el.into_any_element();
+    }
     el.with_animation(
         id,
         Animation::new(Duration::from_millis(1400)).repeat(),

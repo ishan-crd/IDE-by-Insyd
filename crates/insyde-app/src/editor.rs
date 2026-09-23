@@ -41,11 +41,17 @@ impl FileEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let settings = insyde_core::settings::get();
         let ext = rel.rsplit('.').next().unwrap_or("").to_string();
         let state = cx.new(|cx| {
             EditorState::new(window, cx)
                 .language(ext)
-                .line_number(true)
+                .line_number(settings.editor_line_numbers)
+                .soft_wrap(settings.editor_soft_wrap)
+                .tab_size(gpui_component::input::TabSize {
+                    tab_size: settings.editor_tab_size.clamp(1, 16) as usize,
+                    hard_tabs: false,
+                })
                 .folding(true)
                 .searchable(true)
         });

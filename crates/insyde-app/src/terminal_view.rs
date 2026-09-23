@@ -77,6 +77,7 @@ impl TerminalView {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default()
             .into();
+        let settings = insyde_core::settings::get();
         let mut env = env;
         env.insert("PATH".into(), insyde_core::agents::augmented_path());
         // Remote worktrees: the PTY runs `ssh -t host` into the worktree.
@@ -86,7 +87,15 @@ impl TerminalView {
                 let (ssh, args) = insyde_core::remote::pty_command(&host, &dir, p);
                 (dirs_home(), Some((ssh, args)))
             }
-            None => (cwd.clone(), program.clone()),
+            None => {
+                // A shell override from settings applies to plain terminals.
+                let shell = settings.shell.trim().to_string();
+                let program = match (&program, shell.is_empty()) {
+                    (None, false) => Some((shell, vec!["-l".to_string()])),
+                    _ => program.clone(),
+                };
+                (cwd.clone(), program)
+            }
         };
         let opts = SpawnOptions {
             cwd: local_cwd,
@@ -98,7 +107,7 @@ impl TerminalView {
                 cell_w: 7.,
                 cell_h: 19.,
             },
-            scrollback: 10_000,
+            scrollback: settings.term_scrollback.clamp(100, 200_000) as usize,
         };
         let (session, error) = match TerminalSession::spawn(opts, notify) {
             Ok(s) => (Some(Arc::new(s)), None),
@@ -141,7 +150,7 @@ impl TerminalView {
             exited: None,
             error,
             focus: cx.focus_handle(),
-            font_size: 11.5,
+            font_size: settings.term_font_size.clamp(8., 28.),
             program,
             cwd,
             last_activity: std::time::Instant::now() - std::time::Duration::from_secs(3600),
@@ -199,14 +208,15 @@ impl TerminalView {
             return;
         }
         let app_cursor = sess.term.lock().mode().contains(TermMode::APP_CURSOR);
-        if let Some(bytes) = key_bytes(
-            &k.key,
-            k.key_char.as_deref(),
-            m.control,
-            m.alt,
-            m.shift,
-            app_cursor,
-        ) {
+        // Option as Meta: ⌥B sends ESC b (readline word jumps). Otherwise ⌥
+        // types the composed character (e.g. ∫), as in macOS apps.
+        let meta = insyde_core::settings::get().option_as_meta;
+        let (ch, alt) = match (m.alt, meta) {
+            (true, true) if k.key.chars().count() == 1 => (Some(k.key.as_str()), true),
+            (true, false) => (k.key_char.as_deref(), false),
+            _ => (k.key_char.as_deref(), m.alt),
+        };
+        if let Some(bytes) = key_bytes(&k.key, ch, m.control, alt, m.shift, app_cursor) {
             sess.clear_selection();
             sess.scroll_to_bottom();
             sess.write(bytes);
@@ -223,7 +233,7 @@ impl TerminalView {
 
     fn on_scroll(&mut self, ev: &ScrollWheelEvent, _w: &mut Window, cx: &mut Context<Self>) {
         let Some(sess) = &self.session else { return };
-        let line_h = self.font_size * 1.7;
+        let line_h = self.font_size * insyde_core::settings::get().term_line_height.clamp(1., 2.5);
         let dy = match ev.delta {
             ScrollDelta::Pixels(p) => f32::from(p.y) / line_h,
             ScrollDelta::Lines(l) => l.y * 3.,
@@ -516,10 +526,14 @@ impl Render for TerminalView {
                 cx.listener(|this, _, _, cx| {
                     this.selecting = false;
                     // A plain click leaves an empty selection; drop it.
-                    if let Some(s) = &this.session
-                        && s.selected_text().is_none()
-                    {
-                        s.clear_selection();
+                    if let Some(s) = &this.session {
+                        match s.selected_text() {
+                            None => s.clear_selection(),
+                            Some(text) if insyde_core::settings::get().copy_on_select => {
+                                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                            }
+                            Some(_) => {}
+                        }
                     }
                     cx.notify();
                 }),
@@ -533,8 +547,14 @@ impl Render for TerminalView {
             );
         };
         let font_size = px(self.font_size);
-        let line_h = px((self.font_size * 1.7).round());
-        let mono = font(metrics::MONO_FONT);
+        let settings = insyde_core::settings::get();
+        let line_h = px((self.font_size * settings.term_line_height.clamp(1., 2.5)).round());
+        let family = if settings.term_font.trim().is_empty() {
+            metrics::MONO_FONT.to_string()
+        } else {
+            settings.term_font.trim().to_string()
+        };
+        let mono = font(family);
         let geom = self.geom.clone();
         base.child(
             canvas(

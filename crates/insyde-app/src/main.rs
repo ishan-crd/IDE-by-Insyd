@@ -4,7 +4,9 @@ mod assets;
 mod brain_view;
 mod chat;
 mod editor;
+mod prefs;
 mod search;
+mod settings_view;
 mod terminal_view;
 mod ui;
 mod workspace;
@@ -82,17 +84,13 @@ fn main() {
         .init();
     insyde_core::agents::warm_path();
     let store = Store::open_default().expect("open InsyDE database");
-    let mode = match store.get::<String>("theme").as_deref() {
-        Some("light") => Mode::Light,
-        _ => Mode::Dark,
-    };
     gpui_platform::application()
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
             tracing::debug!("startup: app running after {:?}", t0.elapsed());
             gpui_component::init(cx);
-            insyde_theme::init(cx, mode);
-            sync_component_theme(cx);
+            insyde_theme::init(cx, Mode::Dark);
+            prefs::apply_theme(cx);
             cx.bind_keys([
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("cmd-t", NewAgent, Some("Workspace")),
@@ -103,6 +101,7 @@ fn main() {
                 KeyBinding::new("cmd-shift-l", ToggleTheme, Some("Workspace")),
                 KeyBinding::new("ctrl-`", NewTerminal, Some("Workspace")),
                 KeyBinding::new("cmd-o", OpenProject, Some("Workspace")),
+                KeyBinding::new("cmd-,", OpenSettings, Some("Workspace")),
                 KeyBinding::new("cmd-s", SaveFile, Some("Workspace")),
             ]);
             cx.on_action(|_: &Quit, cx| cx.quit());
@@ -125,6 +124,10 @@ fn main() {
                 ..Default::default()
             };
             cx.open_window(opts, |window, cx| {
+                // Follow the OS light/dark switch when the theme is "System".
+                window
+                    .observe_window_appearance(|_, cx| prefs::apply_theme(cx))
+                    .detach();
                 let ws = cx.new(|cx| Workspace::new(store.clone(), window, cx));
                 ws.update(cx, |w, cx| {
                     w.ensure_wt(Some(window), cx);

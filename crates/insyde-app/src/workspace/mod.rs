@@ -27,7 +27,7 @@ use insyde_core::forge::PullRequest;
 use insyde_core::git::FileStat;
 use insyde_core::project::Project;
 use insyde_core::store::Store;
-use insyde_theme::{ActiveTheme, Mode, metrics};
+use insyde_theme::{ActiveTheme, metrics};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -46,7 +46,8 @@ actions!(
         ToggleTheme,
         NewTerminal,
         OpenProject,
-        SaveFile
+        SaveFile,
+        OpenSettings
     ]
 );
 
@@ -240,6 +241,9 @@ pub struct Workspace {
     pub team: Option<team::TeamState>,
     pub team_form: Option<team::TeamForm>,
     pub connect_form: Option<Entity<InputState>>,
+    pub settings_view: Option<Entity<crate::settings_view::SettingsView>>,
+    /// Setup commands to run in the first terminal of freshly created worktrees.
+    pending_setup: HashMap<PathBuf, String>,
     /// Set while a team is opening worktrees, so they don't get a default chat.
     suppress_default_tab: bool,
     _subs: Vec<Subscription>,
@@ -319,6 +323,8 @@ impl Workspace {
             team: None,
             team_form: None,
             connect_form: None,
+            settings_view: None,
+            pending_setup: HashMap::new(),
             suppress_default_tab: false,
             _subs: subs,
         };
@@ -326,12 +332,15 @@ impl Workspace {
             this.scan_project(i, cx);
             this.load_brain(i, cx);
         }
-        this.start_rpc(window, cx);
+        if insyde_core::settings::get().control_socket {
+            this.start_rpc(window, cx);
+        }
         // Refresh the active project's worktrees and PR state periodically.
         cx.spawn(async move |this, cx| {
             loop {
+                let secs = insyde_core::settings::get().refresh_secs.clamp(5, 600) as u64;
                 cx.background_executor()
-                    .timer(Duration::from_secs(20))
+                    .timer(Duration::from_secs(secs))
                     .await;
                 if this
                     .update(cx, |this, cx| this.scan_project(this.p, cx))
@@ -456,10 +465,11 @@ impl Workspace {
         let task = cx.background_spawn(async move {
             let prs = insyde_core::forge::open_prs(&project.root);
             project.scan(&prs);
-            project
+            let base_sha = insyde_core::git::head_sha(&project.root, &project.base);
+            (project, base_sha)
         });
         cx.spawn(async move |this, cx| {
-            let project = task.await;
+            let (project, base_sha) = task.await;
             let _ = this.update(cx, |this, cx| {
                 if let Some(ps) = this.projects.get_mut(i) {
                     let active_path = ps
@@ -482,6 +492,15 @@ impl Workspace {
                 if i == this.p {
                     this.ensure_wt(window_less(), cx);
                     this.refresh_wt_details(cx);
+                    // Keep the brain in step with the base branch when asked to.
+                    let stale = matches!(
+                        (&this.projects[i].brain, &base_sha),
+                        (BrainState::Ready { handle, .. }, Some(sha)) if handle.graph.read().sha != *sha
+                    );
+                    if stale && insyde_core::settings::get().brain_auto_update {
+                        this.log("Base branch moved: updating the Project Brain");
+                        this.build_brain(cx);
+                    }
                 }
                 cx.notify();
             });
@@ -675,7 +694,8 @@ impl Workspace {
         let mut ws = ws;
         ws.comments = self.store.pending_comments(&path);
         self.wts.insert(path.clone(), ws);
-        self.add_pane(None, cx);
+        let setup = self.pending_setup.remove(&path);
+        self.add_pane(setup, cx);
         let rows = self.store.open_sessions(&path).unwrap_or_default();
         let mut restored = false;
         if let Some(window) = window {
@@ -686,7 +706,7 @@ impl Workspace {
                 }
             }
             if !restored && !self.suppress_default_tab {
-                self.open_chat(DEFAULT_AGENT, None, None, window, cx);
+                self.open_chat(crate::prefs::default_agent(), None, None, window, cx);
             }
             if let Some(ws) = self.wts.get_mut(&path) {
                 ws.active = 0;
@@ -863,16 +883,30 @@ impl Workspace {
             return;
         };
         let (root, base, i) = (ps.project.root.clone(), ps.project.base.clone(), self.p);
-        let branch = insyde_core::git::slugify_branch(&title);
+        let settings = insyde_core::settings::get();
+        let branch = insyde_core::git::slugify_branch_with(&title, &settings.branch_prefix);
         self.toast(format!("Creating worktree {branch}…"), false, cx);
         let b2 = branch.clone();
-        let task =
-            cx.background_spawn(async move { insyde_core::git::add_worktree(&root, &b2, &base) });
+        let copies = settings.copy_list();
+        let task = cx.background_spawn(async move {
+            let path = insyde_core::git::add_worktree(&root, &b2, &base)?;
+            // Bring over untracked local files (e.g. .env) that the task will need.
+            for f in copies {
+                if let Ok(bytes) = insyde_core::remote::read_file(&root.join(&f)) {
+                    let _ = insyde_core::remote::write_file(&path.join(&f), &bytes);
+                }
+            }
+            anyhow::Ok(path)
+        });
         cx.spawn(async move |this, cx| {
             let res = task.await;
             let _ = this.update(cx, |this, cx| match res {
                 Ok(path) => {
                     this.toast(format!("Worktree {branch} ready"), false, cx);
+                    let setup = insyde_core::settings::get().setup_command;
+                    if !setup.trim().is_empty() {
+                        this.pending_setup.insert(path.clone(), setup);
+                    }
                     let root = this.projects.get(i).map(|p| p.project.root.clone());
                     if let Some(root) = root {
                         this.store
@@ -963,7 +997,7 @@ impl Workspace {
             .map(|p| p.project.name.clone())
             .unwrap_or_default();
         let brain = self.brain_handle(self.p);
-        let policy: Policy = self.store.get("policy").unwrap_or(Policy::AcceptEdits);
+        let policy: Policy = crate::prefs::policy();
         let title = resume
             .as_ref()
             .map(|r| r.title.clone())
@@ -1017,6 +1051,35 @@ impl Workspace {
                 }
                 ChatEvent::Handoff => this.open_handoff(window, cx),
                 ChatEvent::CreateBrain => this.build_brain(cx),
+                ChatEvent::TurnDone | ChatEvent::NeedsPermission => {
+                    let s = insyde_core::settings::get();
+                    let wanted = if matches!(ev, ChatEvent::TurnDone) {
+                        s.notify_turn_done
+                    } else {
+                        s.notify_permission
+                    };
+                    if wanted && (!s.notify_only_background || !window.is_window_active()) {
+                        let c = chat.read(cx);
+                        let agent = AgentSpec::get(c.agent).name;
+                        let (title, body) = if matches!(ev, ChatEvent::TurnDone) {
+                            (
+                                format!("{agent} finished"),
+                                c.last_reply().chars().take(140).collect::<String>(),
+                            )
+                        } else {
+                            (
+                                format!("{agent} needs your approval"),
+                                format!("{} · {}", c.branch, c.title),
+                            )
+                        };
+                        cx.show_system_notification(gpui::SystemNotification {
+                            tag: format!("insyde-{}", c.title).into(),
+                            title: title.into(),
+                            body: body.into(),
+                            actions: vec![],
+                        });
+                    }
+                }
             },
         ));
         let id = self.next_id();
@@ -1107,7 +1170,10 @@ impl Workspace {
                 self.toast(format!("Opened {url} in your browser"), false, cx);
             }
             id => {
-                let chat = spec.acp.is_some() && !terminal_ui;
+                // ⌘ flips the default chosen in settings (chat UI vs. the agent's own TUI).
+                let prefer_terminal = insyde_core::settings::get().open_agents_as
+                    == insyde_core::settings::OpenAs::Terminal;
+                let chat = spec.acp.is_some() && (terminal_ui == prefer_terminal);
                 if chat {
                     self.open_chat(id, None, None, window, cx)
                 } else {
@@ -1166,6 +1232,7 @@ impl Workspace {
                 .to_string_lossy()
                 .into_owned(),
         );
+        env.extend(insyde_core::settings::get().env_pairs());
         env
     }
 
@@ -1275,7 +1342,12 @@ impl Workspace {
                 let e = ed.read(cx);
                 (e.rel == rel, e.dirty, e.rel.clone())
             };
-            if dirty {
+            if dirty && !same && insyde_core::settings::get().editor_autosave {
+                ed.update(cx, |e, cx| e.save(cx));
+                if ed.read(cx).dirty {
+                    return; // save failed: keep the edits open (the error was shown)
+                }
+            } else if dirty {
                 self.right_tab = RightTab::Files;
                 if !same {
                     self.toast(
@@ -1425,7 +1497,7 @@ impl Workspace {
         let chat = match self.active_chat() {
             Some(c) => c,
             None => {
-                self.open_chat(DEFAULT_AGENT, None, None, window, cx);
+                self.open_chat(crate::prefs::default_agent(), None, None, window, cx);
                 match self.active_chat() {
                     Some(c) => c,
                     None => return,
@@ -1473,7 +1545,9 @@ impl Workspace {
             return;
         }
         self.toast("Pushing branch and opening a draft PR…", false, cx);
-        let task = cx.background_spawn(async move { insyde_core::forge::create_pr(&path, &base) });
+        let task = cx.background_spawn(async move {
+            insyde_core::forge::create_pr(&path, &base, insyde_core::settings::get().pr_draft)
+        });
         cx.spawn(async move |this, cx| {
             let res = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -1875,12 +1949,50 @@ impl Workspace {
 
     pub fn toggle_theme(&mut self, cx: &mut Context<Self>) {
         let dark = cx.theme().is_dark();
-        let mode = if dark { Mode::Light } else { Mode::Dark };
-        insyde_theme::init(cx, mode);
-        crate::sync_component_theme(cx);
-        self.store
-            .set("theme", &(if dark { "light" } else { "dark" }));
-        cx.refresh_windows();
+        insyde_core::settings::update(|s| {
+            s.theme = if dark {
+                insyde_core::settings::ThemeChoice::Light
+            } else {
+                insyde_core::settings::ThemeChoice::Dark
+            }
+        });
+        crate::prefs::apply_theme(cx);
+    }
+
+    pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.settings_view.is_some() {
+            return;
+        }
+        self.menu_open = false;
+        let view =
+            cx.new(|cx| crate::settings_view::SettingsView::new(self.store.clone(), window, cx));
+        self._subs.push(cx.subscribe(
+            &view,
+            |this, _, ev: &crate::settings_view::SettingsEvent, cx| match ev {
+                crate::settings_view::SettingsEvent::Close => {
+                    this.settings_view = None;
+                    cx.notify();
+                }
+                crate::settings_view::SettingsEvent::BrainsCleared => {
+                    for ps in &mut this.projects {
+                        ps.brain = BrainState::None;
+                    }
+                    this.brain_view = None;
+                    cx.notify();
+                }
+            },
+        ));
+        self.settings_view = Some(view);
+        cx.notify();
+    }
+
+    /// Index of the default agent in the picker (for "+ Agent" and ⌘T).
+    pub fn default_agent_index() -> usize {
+        let id = crate::prefs::default_agent();
+        insyde_core::agents::AGENTS
+            .iter()
+            .position(|a| a.id == id)
+            .unwrap_or(2)
     }
 
     pub fn counts(&self, cx: &App) -> (usize, usize) {
@@ -1926,6 +2038,11 @@ fn window_less<'a>() -> Option<&'a mut Window> {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme().clone();
+        // Keyboard shortcuts need a focused element inside the workspace: when the
+        // focused view goes away (closing Settings, a popover…), take focus back.
+        if window.focused(cx).is_none() {
+            self.focus.focus(window, cx);
+        }
         let vs = window.viewport_size();
         self.window_size = (f32::from(vs.width), f32::from(vs.height));
         if self.pending_default_tab {
@@ -1956,7 +2073,10 @@ impl Render for Workspace {
                     }
                 }),
             )
-            .on_action(cx.listener(|this, _: &NewAgent, w, cx| this.add_agent(2, false, w, cx)))
+            .on_action(cx.listener(|this, _: &NewAgent, w, cx| {
+                this.add_agent(Self::default_agent_index(), false, w, cx)
+            }))
+            .on_action(cx.listener(|this, _: &OpenSettings, w, cx| this.open_settings(w, cx)))
             .on_action(cx.listener(|this, _: &CloseTab, _, cx| {
                 if let Some(id) = this
                     .wt()

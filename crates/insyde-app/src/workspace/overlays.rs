@@ -269,6 +269,9 @@ impl Workspace {
         if let Some(bv) = &self.brain_view {
             root = root.child(bv.clone());
         }
+        if let Some(sv) = &self.settings_view {
+            root = root.child(sv.clone());
+        }
 
         if let Some(toast) = &self.toast {
             root = root.child(
