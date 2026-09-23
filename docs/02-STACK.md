@@ -2,7 +2,7 @@
 
 One sentence: **a native, GPU-rendered, 100% Rust desktop IDE built on GPUI (Zed's UI framework) with gpui-kit components, driving coding agents over the Agent Client Protocol, with an alacritty-based terminal, gitoxide for git, and an embedded daemon core that a CLI and (later) remote clients can talk to.**
 
-Rename note: the workspace is called `ide` and crates are `ide-*` until a product name is chosen. Renaming is a single `sed`; do not block on it.
+Rename note: the workspace is called `ide` and crates are `insyde-*` until a product name is chosen. Renaming is a single `sed`; do not block on it.
 
 ## Non-negotiables
 

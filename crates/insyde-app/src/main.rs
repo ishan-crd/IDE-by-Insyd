@@ -68,12 +68,14 @@ pub fn sync_component_theme(cx: &mut App) {
 }
 
 fn main() {
+    let t0 = std::time::Instant::now();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "insyde=info,warn".into()),
         )
         .init();
+    insyde_core::agents::warm_path();
     let store = Store::open_default().expect("open InsyDE database");
     let mode = match store.get::<String>("theme").as_deref() {
         Some("light") => Mode::Light,
@@ -82,7 +84,8 @@ fn main() {
     gpui_platform::application()
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
-            gpui_component::init(cx);
+            tracing::debug!("startup: app running after {:?}", t0.elapsed());
+        gpui_component::init(cx);
             insyde_theme::init(cx, mode);
             sync_component_theme(cx);
             cx.bind_keys([
@@ -103,7 +106,8 @@ fn main() {
                 }
             })
             .detach();
-            let bounds = Bounds::centered(None, size(px(1512.), px(982.)), cx);
+            tracing::debug!("startup: init done after {:?}", t0.elapsed());
+        let bounds = Bounds::centered(None, size(px(1512.), px(982.)), cx);
             let opts = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitlebarOptions {
@@ -123,6 +127,7 @@ fn main() {
                 cx.new(|cx| gpui_component::Root::new(ws, window, cx))
             })
             .expect("open window");
+        tracing::debug!("startup: window opened after {:?}", t0.elapsed());
             cx.activate(true);
         });
 }

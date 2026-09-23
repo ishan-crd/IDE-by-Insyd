@@ -5,13 +5,21 @@ edition.workspace = true
 license.workspace = true
 description = "InsyDE desktop app (GPUI)."
 
+[features]
+# Compile Metal shaders at launch (~0.8s) so the app builds without Xcode's
+# separately-downloaded Metal toolchain. For fast startup, install it
+# (`xcodebuild -downloadComponent MetalToolchain`) and build with
+# `--no-default-features` to precompile shaders at build time.
+default = ["runtime-shaders"]
+runtime-shaders = ["gpui_platform/runtime_shaders"]
+
 [[bin]]
 name = "insyde"
 path = "src/main.rs"
 
 [dependencies]
 gpui.workspace = true
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.6", features = ["font-kit", "runtime_shaders"] }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.6", features = ["font-kit"] }
 gpui-component.workspace = true
 gpui-kit-assets = "=0.6.6"
 insyde-core.workspace = true

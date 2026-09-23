@@ -12,7 +12,7 @@
 use super::transcript::{
     self, Item, PermissionPrompt, PlanEntry, ToolItem, ToolKind, ToolStatus, Transcript,
 };
-use super::{Cmd, augmented_path, which};
+use super::{Cmd, augmented_path_blocking, which};
 use crate::store::{Store, now};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1 as acp;
@@ -503,7 +503,7 @@ async fn run(
         which(cmd.program).ok_or_else(|| anyhow::anyhow!("No such file: {}", cmd.program))?;
     let mut config = AcpAgentConfig::new(program)
         .args(cmd.args.iter().copied())
-        .env("PATH", augmented_path());
+        .env("PATH", augmented_path_blocking());
     if let Some(h) = dirs::home_dir() {
         config = config.env("HOME", h.to_string_lossy().to_string());
     }

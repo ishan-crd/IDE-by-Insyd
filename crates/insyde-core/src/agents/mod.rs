@@ -244,9 +244,11 @@ pub fn augmented_path() -> String {
     for d in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] {
         parts.push(PathBuf::from(d));
     }
-    // Node version managers keep node in a versioned dir; add the one `which node` would find via login shell once.
-    if let Some(node_dir) = login_shell_node_dir() {
-        parts.insert(0, node_dir);
+    // Node version managers keep node in a versioned dir. The login-shell probe
+    // that finds it is slow, so it runs once in the background (see `warm_path`)
+    // and is used here only when already known — never blocking the caller.
+    if let Some(Some(node_dir)) = NODE_DIR.get() {
+        parts.insert(0, node_dir.clone());
     }
     let mut seen = std::collections::HashSet::new();
     parts.retain(|p| seen.insert(p.clone()));
@@ -255,10 +257,21 @@ pub fn augmented_path() -> String {
         .unwrap_or_default()
 }
 
+static NODE_DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+
+/// Start the login-shell probe for `node` on a background thread (call at startup).
+pub fn warm_path() {
+    std::thread::Builder::new().name("path-probe".into()).spawn(|| { login_shell_node_dir(); }).ok();
+}
+
+/// Blocking variant for agent threads, which need the full PATH before spawning.
+pub fn augmented_path_blocking() -> String {
+    login_shell_node_dir();
+    augmented_path()
+}
+
 fn login_shell_node_dir() -> Option<PathBuf> {
-    use std::sync::OnceLock;
-    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
-    DIR.get_or_init(|| {
+    NODE_DIR.get_or_init(|| {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
         let out = std::process::Command::new(shell)
             .args(["-lic", "command -v node"])
