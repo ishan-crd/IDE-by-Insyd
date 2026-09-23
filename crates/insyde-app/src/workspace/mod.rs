@@ -207,6 +207,9 @@ pub struct Toast {
     pub at: Instant,
 }
 
+/// Gap around the floating sheets in glass mode.
+pub(crate) const GLASS_GAP: f32 = 6.;
+
 pub struct Workspace {
     pub store: Store,
     pub projects: Vec<ProjectState>,
@@ -246,6 +249,8 @@ pub struct Workspace {
     pending_setup: HashMap<PathBuf, String>,
     /// Set while a team is opening worktrees, so they don't get a default chat.
     suppress_default_tab: bool,
+    /// Native window background last applied (follows the glass setting).
+    bg_appearance: gpui::WindowBackgroundAppearance,
     _subs: Vec<Subscription>,
 }
 
@@ -326,6 +331,7 @@ impl Workspace {
             settings_view: None,
             pending_setup: HashMap::new(),
             suppress_default_tab: false,
+            bg_appearance: crate::prefs::window_background(),
             _subs: subs,
         };
         for i in 0..this.projects.len() {
@@ -2043,6 +2049,15 @@ impl Render for Workspace {
         if window.focused(cx).is_none() {
             self.focus.focus(window, cx);
         }
+        let want_bg = if t.glass {
+            gpui::WindowBackgroundAppearance::Blurred
+        } else {
+            gpui::WindowBackgroundAppearance::Opaque
+        };
+        if self.bg_appearance != want_bg {
+            self.bg_appearance = want_bg;
+            window.set_background_appearance(want_bg);
+        }
         let vs = window.viewport_size();
         self.window_size = (f32::from(vs.width), f32::from(vs.height));
         if self.pending_default_tab {
@@ -2058,7 +2073,7 @@ impl Render for Workspace {
             .size_full()
             .flex()
             .flex_col()
-            .bg(t.ground)
+            .bg(t.chrome_ground)
             .text_color(t.ink)
             .font_family(metrics::UI_FONT)
             .text_size(metrics::TEXT)
@@ -2138,6 +2153,7 @@ impl Render for Workspace {
                     .flex_1()
                     .min_w_0()
                     .h_full()
+                    .when(t.glass, |d| d.p(px(GLASS_GAP)))
                     .child(self.render_center(&t, window, cx)),
             )
             .when(right_w > 0., |d| {
@@ -2161,6 +2177,7 @@ impl Render for Workspace {
                 div()
                     .h(px(term_h))
                     .flex_none()
+                    .when(t.glass, |d| d.px(px(GLASS_GAP)).pb(px(GLASS_GAP)))
                     .child(self.render_bottom(&t, window, cx)),
             );
         }

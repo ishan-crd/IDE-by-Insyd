@@ -276,7 +276,7 @@ impl Workspace {
             .flex_none()
             .pl(px(4.))
             .pr(px(8.))
-            .bg(t.panel)
+            .bg(t.inner(t.panel))
             .border_b_1()
             .border_color(t.line)
             .text_size(metrics::TEXT_SM)
@@ -289,7 +289,7 @@ impl Workspace {
             Some(TabView::Chat(c)) => c.clone().into_any_element(),
             Some(TabView::Term(v)) => div()
                 .size_full()
-                .bg(t.panel_2)
+                .bg(t.inner(t.panel_2))
                 .child(v.clone())
                 .into_any_element(),
             None => div().into_any_element(),
@@ -301,6 +301,12 @@ impl Workspace {
             .size_full()
             .min_w_0()
             .bg(t.ground)
+            .when(t.glass, |d| {
+                d.rounded(metrics::RADIUS_LG)
+                    .border_1()
+                    .border_color(t.chrome_line)
+                    .shadow(t.pop_shadow(false))
+            })
             .child(bar)
             .child(div().flex_1().min_h_0().child(body))
             .into_any_element()

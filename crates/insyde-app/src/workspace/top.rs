@@ -142,9 +142,9 @@ impl Workspace {
             .h(metrics::TOPBAR_H)
             .pl(px(84.)) // native traffic lights sit here
             .pr(px(12.))
-            .bg(t.panel)
+            .bg(t.chrome)
             .border_b_1()
-            .border_color(t.line)
+            .border_color(t.chrome_line)
             .child(
                 div()
                     .flex()

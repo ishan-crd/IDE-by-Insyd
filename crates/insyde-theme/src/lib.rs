@@ -44,6 +44,16 @@ pub struct Theme {
     pub scroll_thumb: Hsla,
     /// Window backdrop outside the app (`html,body` background).
     pub backdrop: Hsla,
+    /// Glass mode: the window chrome is translucent over a blurred desktop
+    /// and the working surfaces float on it as solid sheets.
+    pub glass: bool,
+    /// Background of the window chrome (top bar, sidebars, status bar).
+    /// Equal to `panel` unless glass is on.
+    pub chrome: Hsla,
+    /// Window ground behind everything. Equal to `ground` unless glass is on.
+    pub chrome_ground: Hsla,
+    /// Dividers drawn on the chrome.
+    pub chrome_line: Hsla,
     /// Fixed brand/data colors that do not change with the theme.
     pub palette: Palette,
 }
@@ -128,6 +138,10 @@ impl Theme {
             err_border: hex(0xF0B4B7),
             scroll_thumb: hex(0xC9C9C4),
             backdrop: hex(0x0E0E0D),
+            glass: false,
+            chrome: hex(0xFFFFFF),
+            chrome_ground: hex(0xEDEDEB),
+            chrome_line: hex(0xE4E4E1),
             palette: Palette::new(),
         }
     }
@@ -164,7 +178,54 @@ impl Theme {
             err_border: hex(0x6B3236),
             scroll_thumb: hex(0x4A4A47),
             backdrop: hex(0x0E0E0D),
+            glass: false,
+            chrome: hex(0x1D1D1C),
+            chrome_ground: hex(0x151514),
+            chrome_line: hex(0x2D2D2B),
             palette: Palette::new(),
+        }
+    }
+
+    /// Turn on glass: chrome becomes translucent with the given tint
+    /// (0 = clear, 1 = solid). Lines turn into faint light/dark hairlines
+    /// so they read on any wallpaper.
+    pub fn set_glass(&mut self, tint: f32) {
+        let tint = tint.clamp(0.2, 0.95);
+        self.glass = true;
+        // One tinted layer only: the ground. Chrome regions sit on it without
+        // their own fill (a faint lift in dark mode), otherwise the layers
+        // stack up and the glass turns opaque.
+        self.chrome_ground = self.ground.opacity(tint);
+        self.chrome = if self.is_dark() {
+            gpui::white().opacity(0.025)
+        } else {
+            gpui::white().opacity(0.18)
+        };
+        // Muted text sits on a busy, blurred backdrop: give it more contrast.
+        if self.is_dark() {
+            self.ink_3 = hex(0xB2B2AD);
+            self.ink_4 = hex(0xA2A29C);
+            self.ink_faint = hex(0x8A8A84);
+        } else {
+            self.ink_3 = hex(0x5A5A55);
+            self.ink_4 = hex(0x62625D);
+            self.ink_faint = hex(0x7E7E78);
+        }
+        self.chrome_line = if self.is_dark() {
+            gpui::white().opacity(0.07)
+        } else {
+            gpui::black().opacity(0.07)
+        };
+    }
+
+    /// Background for a surface nested inside a glass sheet: transparent in
+    /// glass mode (so the sheet's rounded corners are not painted over),
+    /// the given color otherwise.
+    pub fn inner(&self, c: Hsla) -> Hsla {
+        if self.glass {
+            gpui::transparent_black()
+        } else {
+            c
         }
     }
 
@@ -311,12 +372,20 @@ pub fn init(cx: &mut App, mode: Mode) {
 
 /// Install the theme for `mode`, optionally with a custom accent color.
 pub fn init_with_accent(cx: &mut App, mode: Mode, accent: Option<Hsla>) {
+    init_full(cx, mode, accent, None);
+}
+
+/// Install the theme with an optional accent and optional glass tint.
+pub fn init_full(cx: &mut App, mode: Mode, accent: Option<Hsla>, glass: Option<f32>) {
     let mut t = match mode {
         Mode::Light => Theme::light(),
         Mode::Dark => Theme::dark(),
     };
     if let Some(a) = accent {
         t.set_accent(a);
+    }
+    if let Some(g) = glass {
+        t.set_glass(g);
     }
     cx.set_global(t);
 }

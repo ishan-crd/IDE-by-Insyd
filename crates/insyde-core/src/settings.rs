@@ -50,6 +50,10 @@ pub struct Settings {
     pub accent: Accent,
     pub reduce_motion: bool,
     pub chat_text_size: f32,
+    /// Translucent, blurred window chrome with solid working sheets.
+    pub glass: bool,
+    /// How much of the chrome color covers the blurred desktop, in percent.
+    pub glass_tint: u32,
 
     // Agents
     pub default_agent: String,
@@ -114,6 +118,8 @@ impl Default for Settings {
             accent: Accent::Blue,
             reduce_motion: false,
             chat_text_size: 13.,
+            glass: false,
+            glass_tint: 60,
             default_agent: "claude".into(),
             open_agents_as: OpenAs::Chat,
             approval: Approval::AcceptEdits,

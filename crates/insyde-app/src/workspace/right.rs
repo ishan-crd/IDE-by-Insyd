@@ -50,9 +50,9 @@ impl Workspace {
             .flex_col()
             .size_full()
             .min_h_0()
-            .bg(t.panel)
+            .bg(t.chrome)
             .border_l_1()
-            .border_color(t.line)
+            .border_color(t.chrome_line)
             .overflow_hidden()
             .child(
                 div()

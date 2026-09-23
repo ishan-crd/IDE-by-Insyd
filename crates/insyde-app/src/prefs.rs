@@ -22,7 +22,8 @@ pub fn apply_theme(cx: &mut App) {
         .and_then(|v| v.as_str().map(str::to_string))
         .unwrap_or_default();
     let accent = insyde_theme::accent_hex(&accent_name).map(insyde_theme::color);
-    insyde_theme::init_with_accent(cx, mode, accent);
+    let glass = s.glass.then(|| s.glass_tint as f32 / 100.);
+    insyde_theme::init_full(cx, mode, accent, glass);
     crate::sync_component_theme(cx);
     cx.refresh_windows();
 }
@@ -42,6 +43,15 @@ pub fn default_agent() -> AgentId {
         .filter(|s| s.acp.is_some())
         .map(|s| s.id)
         .unwrap_or(DEFAULT_AGENT)
+}
+
+/// The native window background that matches the glass setting.
+pub fn window_background() -> gpui::WindowBackgroundAppearance {
+    if settings::get().glass {
+        gpui::WindowBackgroundAppearance::Blurred
+    } else {
+        gpui::WindowBackgroundAppearance::Opaque
+    }
 }
 
 pub fn reduce_motion() -> bool {

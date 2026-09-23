@@ -32,6 +32,9 @@ agent persistent context about the repository's main branch.
 - **Editor and review**: code editor with highlighting and ⌘S; comment on any diff line and send
   the comments to the agent.
 - Light and dark themes from the design tokens; all regions resizable and persisted.
+- **Glass** (Settings, Look & feel): the sidebars, top bar and status bar turn translucent over a
+  blurred desktop, and chats and terminals float on it as solid rounded sheets. Tint is adjustable
+  and it switches live.
 - **Settings** (gear in the sidebar or ⌘,): ten categories covering look and accent, agents
   (default agent, approval policy, launch-command overrides, extra environment), the brain,
   worktrees and git (location, branch prefix, setup command, files to copy, draft PRs), terminal,

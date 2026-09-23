@@ -582,9 +582,9 @@ impl Workspace {
             .gap(px(16.))
             .h(metrics::STATUS_H)
             .px(px(14.))
-            .bg(t.panel)
+            .bg(t.chrome)
             .border_t_1()
-            .border_color(t.line)
+            .border_color(t.chrome_line)
             .text_size(metrics::TEXT_XS)
             .text_color(t.ink_3)
             .child(

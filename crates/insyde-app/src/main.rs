@@ -72,6 +72,11 @@ pub fn sync_component_theme(cx: &mut App) {
     k.link = t.accent;
     k.selection = t.sel_chip;
     k.scrollbar_thumb = t.scroll_thumb;
+    if t.glass {
+        // The component root paints this under everything; keep it clear so
+        // the blurred desktop shows through the chrome.
+        c.tokens.background = gpui::transparent_black().into();
+    }
 }
 
 fn main() {
@@ -121,6 +126,7 @@ fn main() {
                     traffic_light_position: Some(point(px(16.), px(17.))),
                 }),
                 window_min_size: Some(size(px(960.), px(620.))),
+                window_background: prefs::window_background(),
                 ..Default::default()
             };
             cx.open_window(opts, |window, cx| {

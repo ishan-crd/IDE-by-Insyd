@@ -64,7 +64,7 @@ impl Cat {
     }
     fn blurb(self) -> &'static str {
         match self {
-            Cat::Look => "Theme, accent color, motion and reading size.",
+            Cat::Look => "Theme, accent color, glass, motion and reading size.",
             Cat::Agents => "Which agent starts, how it's approved, and how it's launched.",
             Cat::Brain => "How much project context every agent receives.",
             Cat::Worktrees => "Where task worktrees live and what happens when one is created.",
@@ -221,7 +221,11 @@ impl SettingsView {
     fn set(&mut self, f: impl FnOnce(&mut Settings), cx: &mut Context<Self>) {
         let before = settings::get();
         let after = settings::update(f);
-        if before.theme != after.theme || before.accent != after.accent {
+        if before.theme != after.theme
+            || before.accent != after.accent
+            || before.glass != after.glass
+            || before.glass_tint != after.glass_tint
+        {
             crate::prefs::apply_theme(cx);
         }
         self.changed(cx);
@@ -431,6 +435,32 @@ impl SettingsView {
                 18.,
                 "px",
                 |s, v| s.chat_text_size = v,
+                t,
+                cx
+            )
+        );
+        tile!(
+            Cat::Look,
+            "Glass",
+            "See your desktop, softly blurred, through the sidebars and top bar. Chats and terminals float on top as solid sheets.",
+            s.glass != d.glass,
+            Some(|s: &mut Settings| s.glass = Settings::default().glass),
+            self.toggle("glass", s.glass, |s, v| s.glass = v, t, cx)
+        );
+        tile!(
+            Cat::Look,
+            "Glass tint",
+            "How much color covers the blur. Lower is clearer, higher is easier to read.",
+            s.glass_tint != d.glass_tint,
+            Some(|s: &mut Settings| s.glass_tint = Settings::default().glass_tint),
+            self.stepper(
+                "glass-tint",
+                s.glass_tint as f32,
+                10.,
+                30.,
+                90.,
+                "%",
+                |s, v| s.glass_tint = v as u32,
                 t,
                 cx
             )

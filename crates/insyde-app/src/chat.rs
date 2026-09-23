@@ -871,7 +871,7 @@ impl Render for ChatView {
             .flex()
             .flex_col()
             .min_h_0()
-            .bg(t.ground)
+            .bg(t.inner(t.ground))
             .track_focus(&self.focus);
         if fresh {
             main = main.child(self.render_empty(&t, cx));

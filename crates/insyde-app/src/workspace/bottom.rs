@@ -166,7 +166,7 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .bg(t.panel_2)
+                    .bg(t.inner(t.panel_2))
                     .child(col)
                     .into_any_element()
             }
@@ -204,7 +204,7 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .bg(t.panel_2)
+                    .bg(t.inner(t.panel_2))
                     .child(col)
                     .into_any_element()
             }
@@ -215,9 +215,15 @@ impl Workspace {
             .flex_col()
             .size_full()
             .min_h_0()
-            .bg(t.panel)
+            .bg(if t.glass { t.panel_2 } else { t.panel })
             .border_t_1()
             .border_color(t.line)
+            .when(t.glass, |d| {
+                d.rounded(metrics::RADIUS_LG)
+                    .border_1()
+                    .border_color(t.chrome_line)
+                    .shadow(t.pop_shadow(false))
+            })
             .overflow_hidden()
             .child(header)
             .child(div().flex_1().min_h_0().flex().flex_col().child(body))
@@ -237,7 +243,7 @@ impl Workspace {
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(t.panel_2)
+                .bg(t.inner(t.panel_2))
                 .child(
                     ui::small_button("first-term", "Open a terminal", t)
                         .on_click(cx.listener(|this, _, _, cx| this.add_pane(None, cx))),
@@ -267,7 +273,7 @@ impl Workspace {
                 .flex_grow(1.)
                 .border_r_1()
                 .border_color(t.line)
-                .bg(t.panel_2)
+                .bg(t.inner(t.panel_2))
                 .child(
                     div()
                         .flex()
