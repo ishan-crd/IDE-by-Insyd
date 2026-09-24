@@ -1,7 +1,8 @@
-//! Settings screen: category pills across the top, a two-column grid of
-//! setting tiles (control under the description, "Reset" when changed),
-//! search across every category, and a "Changed only" filter. Every change
-//! is saved to `settings.json` immediately and applied live.
+//! Settings screen: a category sidebar (with search and a "Changed only"
+//! filter) beside one grouped list of rows per category: title and
+//! description on the left, the control on the right (wide controls sit
+//! below), "Reset" when changed. Every change is saved to `settings.json`
+//! immediately and applied live.
 
 use crate::ui::{self, icon};
 use gpui::prelude::*;
@@ -83,6 +84,19 @@ impl Cat {
         }
     }
 }
+
+/// Settings whose control needs the row's full width (below the description).
+const WIDE: &[&str] = &[
+    "Default agent",
+    "Permissions by default",
+    "Launch commands",
+    "Environment",
+    "Quick commands",
+    "Clean up",
+];
+
+/// Wide controls that fill the row (editors, lists), not just their content.
+const FULL_WIDTH: &[&str] = &["Launch commands", "Environment", "Quick commands"];
 
 /// Text settings edited through an input, keyed by id.
 const TEXT_KEYS: &[&str] = &[
@@ -329,15 +343,9 @@ impl SettingsView {
             .id(id)
             .flex()
             .items_center()
-            .gap(px(10.))
+            .py(px(4.))
             .cursor_pointer()
             .child(ui::switch(on, t))
-            .child(
-                div()
-                    .text_size(metrics::TEXT_SM)
-                    .text_color(if on { t.ink } else { t.ink_3 })
-                    .child(if on { "On" } else { "Off" }),
-            )
             .on_click(cx.listener(move |this, _, _, cx| this.set(|s| set(s, !on), cx)))
             .into_any_element()
     }
@@ -351,35 +359,38 @@ impl SettingsView {
         t: &Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let mut row = div().flex().flex_wrap().gap(px(6.));
+        let mut seg = div()
+            .flex()
+            .flex_wrap()
+            .p(px(2.))
+            .gap(px(2.))
+            .rounded(metrics::RADIUS)
+            .bg(t.hover);
         for (i, (label, v)) in opts.iter().copied().enumerate() {
             let on = v == cur;
-            let hover = t.hover;
-            row = row.child(
+            let ink = t.ink;
+            seg = seg.child(
                 div()
                     .id(SharedString::from(format!("{id}-{i}")))
-                    .h(px(28.))
-                    .px(px(12.))
+                    .h(px(24.))
+                    .px(px(10.))
                     .flex()
                     .items_center()
-                    .rounded(px(14.))
+                    .rounded(px(5.))
                     .cursor_pointer()
                     .text_size(metrics::TEXT_SM)
                     .font_weight(FontWeight::MEDIUM)
-                    .border_1()
                     .when(on, |d| {
-                        d.bg(t.sel_bg).border_color(t.accent).text_color(t.sel_text)
+                        d.bg(t.seg_active).shadow(t.seg_shadow()).text_color(t.ink)
                     })
                     .when(!on, |d| {
-                        d.border_color(t.field_border)
-                            .text_color(t.ink_2)
-                            .hover(move |s| s.bg(hover))
+                        d.text_color(t.ink_3).hover(move |s| s.text_color(ink))
                     })
                     .child(label)
                     .on_click(cx.listener(move |this, _, _, cx| this.set(|s| set(s, v), cx))),
             );
         }
-        row.into_any_element()
+        seg.into_any_element()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -417,7 +428,7 @@ impl SettingsView {
             .child(btn(format!("{id}-dec"), "minus", value - step, cx))
             .child(
                 div()
-                    .min_w(px(64.))
+                    .min_w(px(56.))
                     .text_center()
                     .font_family(metrics::MONO_FONT)
                     .text_size(metrics::TEXT_SM)
@@ -430,7 +441,10 @@ impl SettingsView {
 
     fn text(&self, key: &str) -> AnyElement {
         match self.inputs.get(key) {
-            Some(i) => Input::new(i).h(px(30.)).into_any_element(),
+            Some(i) => div()
+                .w(px(260.))
+                .child(Input::new(i).h(px(30.)))
+                .into_any_element(),
             None => div().into_any_element(),
         }
     }
@@ -657,7 +671,13 @@ impl SettingsView {
                             .text_color(t.ink_3)
                             .child(*name),
                     )
-                    .child(div().flex_1().child(self.text(&format!("cmd:{key}")))),
+                    .child(
+                        div().flex_1().min_w_0().children(
+                            self.inputs
+                                .get(&format!("cmd:{key}"))
+                                .map(|i| Input::new(i).h(px(30.))),
+                        ),
+                    ),
             );
         }
         tile!(
@@ -1193,20 +1213,18 @@ impl SettingsView {
             .into_any_element()
     }
 
-    fn render_tile(&self, tile: Tile, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+    /// One setting as a row of a grouped list: title and description on the
+    /// left, the control on the right (or below, for wide controls).
+    fn render_row(&self, tile: Tile, first: bool, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let reset = tile.reset.filter(|_| tile.changed);
         let title = tile.title;
-        div()
-            .w(px(506.))
-            .flex_none()
+        let wide = WIDE.contains(&title);
+        let text = div()
             .flex()
             .flex_col()
-            .gap(px(10.))
-            .p(px(14.))
-            .bg(t.panel)
-            .border_1()
-            .border_color(if tile.changed { t.sel_chip } else { t.line })
-            .rounded(metrics::RADIUS_LG)
+            .gap(px(3.))
+            .flex_1()
+            .min_w_0()
             .child(
                 div()
                     .flex()
@@ -1214,20 +1232,20 @@ impl SettingsView {
                     .gap(px(8.))
                     .child(
                         div()
-                            .flex_1()
                             .text_size(metrics::TEXT)
-                            .font_weight(FontWeight::SEMIBOLD)
+                            .font_weight(FontWeight::MEDIUM)
                             .text_color(t.ink)
                             .child(title),
                     )
                     .when_some(reset, |d, r| {
+                        let accent = t.accent;
                         d.child(
                             div()
                                 .id(SharedString::from(format!("reset-{title}")))
                                 .text_size(metrics::TEXT_XS)
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(t.accent)
+                                .text_color(t.ink_3)
                                 .cursor_pointer()
+                                .hover(move |s| s.text_color(accent))
                                 .child("Reset")
                                 .on_click(cx.listener(move |this, _, w, cx| {
                                     this.set(r, cx);
@@ -1238,12 +1256,58 @@ impl SettingsView {
             )
             .child(
                 div()
+                    .max_w(px(520.))
                     .text_size(metrics::TEXT_SM)
                     .text_color(t.ink_3)
                     .child(tile.desc),
-            )
-            .child(tile.control)
-            .into_any_element()
+            );
+        let row = div()
+            .relative()
+            .px(px(16.))
+            .py(px(12.))
+            .when(!first, |d| d.border_t_1().border_color(t.line_soft))
+            // A changed setting gets an accent tick at the left edge.
+            .when(tile.changed, |d| {
+                d.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top(px(14.))
+                        .w(px(2.))
+                        .h(px(16.))
+                        .rounded_r(px(2.))
+                        .bg(t.accent),
+                )
+            });
+        if wide {
+            row.flex()
+                .flex_col()
+                .gap(px(10.))
+                .child(text)
+                // Option bars keep their natural width; editors fill the row.
+                .map(|d| {
+                    if FULL_WIDTH.contains(&title) {
+                        d.child(tile.control)
+                    } else {
+                        d.child(div().flex().child(tile.control))
+                    }
+                })
+                .into_any_element()
+        } else {
+            row.flex()
+                .items_center()
+                .gap(px(24.))
+                .child(text)
+                .child(
+                    div()
+                        .flex()
+                        .flex_none()
+                        .justify_end()
+                        .max_w(px(300.))
+                        .child(tile.control),
+                )
+                .into_any_element()
+        }
     }
 
     fn render_keys(&self, t: &Theme) -> AnyElement {
@@ -1263,45 +1327,59 @@ impl SettingsView {
             ("⌘C · ⌘V · ⌘K", "Copy selection · paste · clear (terminal)"),
             ("⌘+ · ⌘−", "Terminal font size"),
         ];
+        // Grouped list: action on the left, key caps on the right.
         let mut col = div()
             .flex()
             .flex_col()
-            .gap(px(2.))
-            .w(px(1024.))
-            .p(px(10.))
+            .w_full()
             .bg(t.panel)
             .border_1()
             .border_color(t.line)
-            .rounded(metrics::RADIUS_LG);
-        for (k, what) in rows {
+            .rounded(metrics::RADIUS_LG)
+            .overflow_hidden();
+        for (i, (k, what)) in rows.iter().enumerate() {
+            let mut caps = div().flex().items_center().gap(px(6.));
+            for (j, part) in k.split(" · ").enumerate() {
+                if j > 0 {
+                    caps = caps.child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_faint)
+                            .child("·"),
+                    );
+                }
+                caps = caps.child(
+                    div()
+                        .px(px(7.))
+                        .h(px(22.))
+                        .flex()
+                        .items_center()
+                        .rounded(px(5.))
+                        .bg(t.hover_2)
+                        .border_1()
+                        .border_color(t.field_border)
+                        .font_family(metrics::MONO_FONT)
+                        .text_size(metrics::TEXT_SM)
+                        .text_color(t.ink)
+                        .child(part.to_string()),
+                );
+            }
             col = col.child(
                 div()
                     .flex()
                     .items_center()
                     .gap(px(16.))
-                    .h(px(32.))
-                    .px(px(8.))
-                    .child(
-                        div().w(px(160.)).flex_none().child(
-                            div()
-                                .px(px(8.))
-                                .py(px(2.))
-                                .rounded(px(5.))
-                                .bg(t.hover_2)
-                                .border_1()
-                                .border_color(t.field_border)
-                                .font_family(metrics::MONO_FONT)
-                                .text_size(metrics::TEXT_SM)
-                                .text_color(t.ink)
-                                .child(*k),
-                        ),
-                    )
+                    .h(px(44.))
+                    .px(px(16.))
+                    .when(i > 0, |d| d.border_t_1().border_color(t.line_soft))
                     .child(
                         div()
-                            .text_size(metrics::TEXT_SM)
-                            .text_color(t.ink_2)
+                            .flex_1()
+                            .text_size(metrics::TEXT)
+                            .text_color(t.ink)
                             .child(*what),
-                    ),
+                    )
+                    .child(caps),
             );
         }
         col.into_any_element()
@@ -1310,7 +1388,7 @@ impl SettingsView {
     /// Pairing panel on the Web access page: QR code, links, connected browsers.
     fn render_web(&self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let panel = div()
-            .w(px(1024.))
+            .w_full()
             .p(px(16.))
             .flex()
             .gap(px(20.))
@@ -1498,6 +1576,7 @@ impl SettingsView {
                 .child(
                     div()
                         .flex_1()
+                        .min_w_0()
                         .text_size(metrics::TEXT_XS)
                         .text_color(t.ink_3)
                         .child("A pairing link works like a key to this Mac. Share it only with your own devices; make a new one to sign every browser out."),
@@ -1529,7 +1608,7 @@ impl SettingsView {
                 )
         };
         div()
-            .w(px(1024.))
+            .w_full()
             .p(px(16.))
             .flex()
             .flex_col()
@@ -1603,46 +1682,36 @@ impl Render for SettingsView {
         let changed_by_cat = |c: Cat| tiles.iter().filter(|x| x.cat == c && x.changed).count();
         let total_changed = tiles.iter().filter(|x| x.changed).count();
 
-        // Category pills.
-        let mut pills = div().flex().flex_wrap().gap(px(4.));
+        // Sidebar: search, categories, and the "changed only" filter.
+        let searching = !query.is_empty();
+        let mut cats = div().flex().flex_col().gap(px(1.));
         for c in Cat::ALL {
-            let on = c == self.cat && query.is_empty();
+            let on = c == self.cat && !searching;
             let n = changed_by_cat(c);
             let hover = t.hover;
-            pills = pills.child(
+            cats = cats.child(
                 div()
                     .id(SharedString::from(format!("cat-{c:?}")))
                     .flex()
                     .items_center()
-                    .gap(px(6.))
+                    .gap(px(8.))
                     .h(px(30.))
                     .px(px(10.))
-                    .rounded(px(15.))
+                    .rounded(metrics::RADIUS)
                     .cursor_pointer()
                     .text_size(metrics::TEXT_SM)
-                    .font_weight(FontWeight::MEDIUM)
-                    .when(on, |d| d.bg(t.primary).text_color(t.on_primary))
-                    .when(!on, |d| {
-                        d.bg(t.panel)
-                            .border_1()
-                            .border_color(t.line)
-                            .text_color(t.ink_2)
-                            .hover(move |s| s.bg(hover))
+                    .when(on, |d| {
+                        d.bg(t.hover_2)
+                            .text_color(t.ink)
+                            .font_weight(FontWeight::MEDIUM)
                     })
-                    .child(c.label())
+                    .when(!on, |d| d.text_color(t.ink_2).hover(move |s| s.bg(hover)))
+                    .child(div().flex_1().child(c.label()))
                     .when(n > 0, |d| {
                         d.child(
                             div()
-                                .min_w(px(16.))
-                                .h(px(16.))
-                                .px(px(4.))
-                                .rounded(px(8.))
-                                .bg(t.accent)
-                                .text_color(t.palette.white)
-                                .text_size(px(10.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
+                                .text_size(metrics::TEXT_XS)
+                                .text_color(t.accent)
                                 .child(n.to_string()),
                         )
                     })
@@ -1653,9 +1722,66 @@ impl Render for SettingsView {
                     })),
             );
         }
+        let sidebar = div()
+            .w(px(232.))
+            .flex_none()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .p(px(12.))
+            .bg(t.chrome)
+            .border_r_1()
+            .border_color(t.chrome_line)
+            .child(
+                Input::new(&self.search)
+                    .prefix(icon("search", 13., t.ink_faint))
+                    .h(px(30.)),
+            )
+            .child(
+                div()
+                    .id("settings-cats")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .child(cats),
+            )
+            .child(
+                div()
+                    .id("only-changed")
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .px(px(10.))
+                    .py(px(8.))
+                    .rounded(metrics::RADIUS)
+                    .cursor_pointer()
+                    .border_t_1()
+                    .border_color(t.line_soft)
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_2)
+                    .child(div().flex_1().child("Changed only"))
+                    .child(ui::switch(self.only_changed, &t))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.only_changed = !this.only_changed;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                div()
+                    .px(px(10.))
+                    .text_size(metrics::TEXT_XS)
+                    .text_color(t.ink_3)
+                    .child(if total_changed == 0 {
+                        "Everything is on its default".to_string()
+                    } else {
+                        format!(
+                            "{total_changed} setting{} customized",
+                            if total_changed == 1 { "" } else { "s" }
+                        )
+                    }),
+            );
 
-        // Body.
-        let searching = !query.is_empty();
+        // Content: the category's heading and one grouped list of rows.
         let visible: Vec<Tile> = tiles
             .into_iter()
             .filter(|x| {
@@ -1668,160 +1794,147 @@ impl Render for SettingsView {
             })
             .filter(|x| !self.only_changed || x.changed)
             .collect();
-        let mut body = div().flex().flex_col().gap(px(14.)).w(px(1024.));
-        if !searching {
-            body = body.child(
+        let group = || {
+            div()
+                .flex()
+                .flex_col()
+                .bg(t.panel)
+                .border_1()
+                .border_color(t.line)
+                .rounded(metrics::RADIUS_LG)
+                .overflow_hidden()
+        };
+        let mut body = div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .w_full()
+            .max_w(px(760.));
+        body =
+            body.child(
                 div()
                     .flex()
                     .flex_col()
-                    .gap(px(2.))
+                    .gap(px(4.))
+                    .pb(px(4.))
                     .child(
                         div()
-                            .text_size(px(20.))
+                            .text_size(px(22.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(t.ink)
-                            .child(self.cat.label()),
+                            .child(if searching {
+                                "Search results"
+                            } else {
+                                self.cat.label()
+                            }),
                     )
-                    .child(
-                        div()
-                            .text_size(metrics::TEXT_SM)
-                            .text_color(t.ink_3)
-                            .child(self.cat.blurb()),
-                    ),
+                    .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(
+                        if searching {
+                            format!("Settings matching \u{201c}{query}\u{201d}")
+                        } else {
+                            self.cat.blurb().to_string()
+                        },
+                    )),
             );
-        }
         if !searching && self.cat == Cat::Keys {
             body = body.child(self.render_keys(&t));
         } else if !searching && self.cat == Cat::About {
             body = body.child(self.render_about(&t, cx));
         } else if visible.is_empty() {
             body = body.child(
-                div()
-                    .py(px(40.))
-                    .text_center()
-                    .text_size(metrics::TEXT_SM)
-                    .text_color(t.ink_3)
-                    .child(if self.only_changed {
-                        "Nothing changed here: everything is on its default."
-                    } else {
-                        "No settings match."
-                    }),
+                group().child(
+                    div()
+                        .py(px(36.))
+                        .text_center()
+                        .text_size(metrics::TEXT_SM)
+                        .text_color(t.ink_3)
+                        .child(if self.only_changed {
+                            "Nothing changed here: everything is on its default."
+                        } else {
+                            "No settings match."
+                        }),
+                ),
             );
         } else {
             if !searching && self.cat == Cat::Web {
                 body = body.child(self.render_web(&t, cx));
             }
             let mut last: Option<Cat> = None;
-            let mut grid = div().flex().flex_wrap().gap(px(12.));
+            let mut card = group();
+            let mut first = true;
             for tile in visible {
                 if searching && last != Some(tile.cat) {
                     if last.is_some() {
-                        body = body.child(grid);
-                        grid = div().flex().flex_wrap().gap(px(12.));
+                        body = body.child(card);
+                        card = group();
                     }
                     body = body.child(
                         div()
-                            .pt(px(6.))
+                            .pt(px(4.))
                             .text_size(metrics::TEXT_XS)
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(t.ink_3)
-                            .child(tile.cat.label().to_uppercase()),
+                            .child(tile.cat.label()),
                     );
                     last = Some(tile.cat);
+                    first = true;
                 }
-                grid = grid.child(self.render_tile(tile, &t, cx));
+                card = card.child(self.render_row(tile, first, &t, cx));
+                first = false;
             }
-            body = body.child(grid);
+            body = body.child(card);
+        }
+        if let Some(n) = self.note.clone() {
+            body = body.child(div().text_size(metrics::TEXT_SM).text_color(t.ok).child(n));
         }
 
         let header = div()
             .flex()
+            .flex_none()
             .items_center()
-            .gap(px(10.))
+            .gap(px(8.))
             .h(metrics::TOPBAR_H)
             .pl(px(84.))
             .pr(px(12.))
-            .bg(t.panel)
+            .bg(t.chrome)
             .border_b_1()
-            .border_color(t.line)
+            .border_color(t.chrome_line)
             .child(
                 div()
-                    .flex()
-                    .items_baseline()
-                    .gap(px(8.))
-                    .pr(px(14.))
-                    .border_r_1()
-                    .border_color(t.line)
-                    .child(
-                        div()
-                            .text_size(metrics::TEXT_TITLE)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(t.ink)
-                            .child("Settings"),
-                    )
-                    .child(
-                        div()
-                            .text_size(metrics::TEXT_SM)
-                            .text_color(t.ink_3)
-                            .child("saved as you change them"),
-                    ),
+                    .text_size(metrics::TEXT_TITLE)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(t.ink)
+                    .child("Settings"),
             )
-            .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(
-                if total_changed == 0 {
-                    "All defaults".to_string()
-                } else {
-                    format!("{total_changed} customized")
-                },
-            ))
+            .child(
+                div()
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_3)
+                    .child("Changes save automatically"),
+            )
             .child(div().flex_1())
-            .child(
-                div().w(px(260.)).child(
-                    Input::new(&self.search)
-                        .prefix(icon("search", 13., t.ink_faint))
-                        .h(px(30.)),
-                ),
-            )
-            .child(
+            .child({
+                let hover = t.hover;
                 div()
-                    .id("only-changed")
+                    .id("open-json")
                     .flex()
                     .items_center()
-                    .gap(px(8.))
+                    .gap(px(6.))
                     .h(metrics::CONTROL_H)
                     .px(px(10.))
                     .rounded(metrics::RADIUS)
-                    .border_1()
-                    .border_color(if self.only_changed {
-                        t.accent
-                    } else {
-                        t.field_border
-                    })
-                    .bg(if self.only_changed { t.sel_bg } else { t.panel })
                     .cursor_pointer()
                     .text_size(metrics::TEXT_SM)
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(if self.only_changed {
-                        t.sel_text
-                    } else {
-                        t.ink_2
-                    })
-                    .child("Changed only")
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.only_changed = !this.only_changed;
-                        cx.notify();
-                    })),
-            )
-            .child(
-                ui::button("open-json", &t)
-                    .text_size(metrics::TEXT_SM)
-                    .child(icon("file", 12., t.ink))
+                    .text_color(t.ink_2)
+                    .hover(move |s| s.bg(hover))
+                    .child(icon("file", 12., t.ink_2))
                     .child("settings.json")
                     .on_click(|_, _, cx| {
                         // Make sure the file exists with every key before opening it.
                         settings::update(|_| {});
                         cx.open_url(&format!("file://{}", settings::path().display()));
-                    }),
-            )
+                    })
+            })
             .child(
                 ui::primary_button("settings-done", &t)
                     .child("Done")
@@ -1843,31 +1956,14 @@ impl Render for SettingsView {
             }))
             .child(header)
             .child(
-                div()
-                    .px(px(24.))
-                    .py(px(12.))
-                    .flex()
-                    .justify_center()
-                    .border_b_1()
-                    .border_color(t.line)
-                    .child(div().w(px(1024.)).child(pills)),
-            )
-            .child(
-                div()
-                    .id("settings-body")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .child(div().py(px(20.)).flex().justify_center().child(body))
-                    .when_some(self.note.clone(), |d, n| {
-                        d.child(
-                            div()
-                                .pb(px(20.))
-                                .flex()
-                                .justify_center()
-                                .child(div().text_size(metrics::TEXT_SM).text_color(t.ok).child(n)),
-                        )
-                    }),
+                div().flex().flex_1().min_h_0().child(sidebar).child(
+                    div()
+                        .id("settings-body")
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_y_scroll()
+                        .child(div().px(px(40.)).py(px(28.)).child(body)),
+                ),
             )
     }
 }
