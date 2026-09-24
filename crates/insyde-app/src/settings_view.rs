@@ -1722,16 +1722,51 @@ impl Render for SettingsView {
                     })),
             );
         }
+        let back_hover = t.hover;
         let sidebar = div()
             .w(px(232.))
             .flex_none()
             .flex()
             .flex_col()
             .gap(px(12.))
-            .p(px(12.))
+            .px(px(12.))
+            .pb(px(12.))
+            // The native traffic lights sit in this strip.
+            .pt(px(44.))
             .bg(t.chrome)
             .border_r_1()
             .border_color(t.chrome_line)
+            .child(
+                div()
+                    .id("settings-back")
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .h(px(32.))
+                    .pl(px(6.))
+                    .pr(px(4.))
+                    .rounded(metrics::RADIUS)
+                    .cursor_pointer()
+                    .text_size(metrics::TEXT)
+                    .text_color(t.ink)
+                    .hover(move |s| s.bg(back_hover))
+                    .child(icon("chevron-left", 13., t.ink_2))
+                    .child(div().flex_1().child("Back to app"))
+                    .child(
+                        div()
+                            .px(px(6.))
+                            .h(px(20.))
+                            .flex()
+                            .items_center()
+                            .rounded(px(5.))
+                            .border_1()
+                            .border_color(t.field_border)
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child("esc"),
+                    )
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Close))),
+            )
             .child(
                 Input::new(&self.search)
                     .prefix(icon("search", 13., t.ink_faint))
@@ -1766,18 +1801,37 @@ impl Render for SettingsView {
                         cx.notify();
                     })),
             )
+            .child({
+                let hover = t.hover;
+                div()
+                    .id("open-json")
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .h(px(28.))
+                    .px(px(10.))
+                    .rounded(metrics::RADIUS)
+                    .cursor_pointer()
+                    .text_size(metrics::TEXT_SM)
+                    .text_color(t.ink_2)
+                    .hover(move |s| s.bg(hover))
+                    .child(icon("file", 12., t.ink_3))
+                    .child("Open settings.json")
+                    .on_click(|_, _, cx| {
+                        // Make sure the file exists with every key before opening it.
+                        settings::update(|_| {});
+                        cx.open_url(&format!("file://{}", settings::path().display()));
+                    })
+            })
             .child(
                 div()
                     .px(px(10.))
                     .text_size(metrics::TEXT_XS)
                     .text_color(t.ink_3)
                     .child(if total_changed == 0 {
-                        "Everything is on its default".to_string()
+                        "Changes save automatically".to_string()
                     } else {
-                        format!(
-                            "{total_changed} setting{} customized",
-                            if total_changed == 1 { "" } else { "s" }
-                        )
+                        format!("{total_changed} customized · saved automatically")
                     }),
             );
 
@@ -1888,59 +1942,6 @@ impl Render for SettingsView {
             body = body.child(div().text_size(metrics::TEXT_SM).text_color(t.ok).child(n));
         }
 
-        let header = div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .gap(px(8.))
-            .h(metrics::TOPBAR_H)
-            .pl(px(84.))
-            .pr(px(12.))
-            .bg(t.chrome)
-            .border_b_1()
-            .border_color(t.chrome_line)
-            .child(
-                div()
-                    .text_size(metrics::TEXT_TITLE)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(t.ink)
-                    .child("Settings"),
-            )
-            .child(
-                div()
-                    .text_size(metrics::TEXT_SM)
-                    .text_color(t.ink_3)
-                    .child("Changes save automatically"),
-            )
-            .child(div().flex_1())
-            .child({
-                let hover = t.hover;
-                div()
-                    .id("open-json")
-                    .flex()
-                    .items_center()
-                    .gap(px(6.))
-                    .h(metrics::CONTROL_H)
-                    .px(px(10.))
-                    .rounded(metrics::RADIUS)
-                    .cursor_pointer()
-                    .text_size(metrics::TEXT_SM)
-                    .text_color(t.ink_2)
-                    .hover(move |s| s.bg(hover))
-                    .child(icon("file", 12., t.ink_2))
-                    .child("settings.json")
-                    .on_click(|_, _, cx| {
-                        // Make sure the file exists with every key before opening it.
-                        settings::update(|_| {});
-                        cx.open_url(&format!("file://{}", settings::path().display()));
-                    })
-            })
-            .child(
-                ui::primary_button("settings-done", &t)
-                    .child("Done")
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Close))),
-            );
-
         div()
             .absolute()
             .inset_0()
@@ -1949,12 +1950,13 @@ impl Render for SettingsView {
             .bg(t.ground)
             .occlude()
             .key_context("Settings")
-            .on_key_down(cx.listener(|_, e: &gpui::KeyDownEvent, _, cx| {
+            // Capture phase: text inputs would otherwise swallow Esc.
+            .capture_key_down(cx.listener(|_, e: &gpui::KeyDownEvent, _, cx| {
                 if e.keystroke.key == "escape" {
+                    cx.stop_propagation();
                     cx.emit(SettingsEvent::Close);
                 }
             }))
-            .child(header)
             .child(
                 div().flex().flex_1().min_h_0().child(sidebar).child(
                     div()
@@ -1962,7 +1964,7 @@ impl Render for SettingsView {
                         .flex_1()
                         .min_w_0()
                         .overflow_y_scroll()
-                        .child(div().px(px(40.)).py(px(28.)).child(body)),
+                        .child(div().px(px(40.)).pt(px(44.)).pb(px(32.)).child(body)),
                 ),
             )
     }
