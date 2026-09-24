@@ -1,4 +1,5 @@
-//! Sidebar: Worktrees / Files / Search, project header, swipe between projects.
+//! Sidebar: Worktrees / Files / Search, project header, and pages: a two-finger
+//! swipe moves between projects and on to an "add a project" page.
 
 use super::{SideTab, Workspace};
 use crate::ui::{self, icon};
@@ -38,32 +39,72 @@ impl Workspace {
                 }
             },
         );
-        let body = match self.side_tab {
-            SideTab::Worktrees => self.render_worktrees(t, window, cx),
-            SideTab::Files => self.render_files(t, cx),
-            SideTab::Search => self.render_search(t, cx),
+        let body = if self.add_page {
+            self.render_add_page(t, cx)
+        } else {
+            match self.side_tab {
+                SideTab::Worktrees => self.render_worktrees(t, window, cx),
+                SideTab::Files => self.render_files(t, cx),
+                SideTab::Search => self.render_search(t, cx),
+            }
         };
-        let n = self.projects.len();
-        let mut dots = div()
+        // The page slides with the swipe and settles back on release.
+        let dx = self.swipe_dx;
+        let body = div()
+            .relative()
+            .left(px(dx))
+            .opacity(1. - dx.abs() / 140.)
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .child(body);
+
+        // Page indicator: a dot per project, the current one as its letter,
+        // then "+" for the add-a-project page.
+        let mut pages = div()
             .flex_1()
             .flex()
             .justify_center()
             .items_center()
-            .gap(px(6.));
-        for i in 0..n {
-            let on = i == self.p;
-            dots = dots.child(
+            .gap(px(8.));
+        for (i, ps) in self.projects.iter().enumerate() {
+            let on = i == self.p && !self.add_page;
+            let hover = t.hover;
+            pages = pages.child(if on {
                 div()
-                    .id(SharedString::from(format!("dot-{i}")))
-                    .w(px(if on { 16. } else { 6. }))
-                    .h(px(6.))
-                    .rounded(px(3.))
+                    .id(SharedString::from(format!("page-{i}")))
+                    .size(px(28.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(metrics::RADIUS)
+                    .bg(t.hover_2)
+                    .text_size(metrics::TEXT_SM)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(t.ink)
+                    .child(ps.project.letter())
+            } else {
+                div()
+                    .id(SharedString::from(format!("page-{i}")))
+                    .size(px(14.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
                     .cursor_pointer()
-                    .bg(if on { t.ink } else { t.ink_disabled })
-                    .on_click(cx.listener(move |this, _, w, cx| this.select_project(i, w, cx))),
-            );
+                    .hover(move |s| s.bg(hover))
+                    .child(div().size(px(5.)).rounded_full().bg(t.ink_disabled))
+                    .on_click(cx.listener(move |this, _, w, cx| this.select_project(i, w, cx)))
+            });
         }
+        pages = pages.child(
+            ui::icon_button("page-add", "plus", 13., t)
+                .when(self.add_page, |d| d.bg(t.hover_2))
+                .on_click(cx.listener(|this, _, w, cx| this.show_add_page(w, cx))),
+        );
         div()
+            .id("sidebar")
             .flex()
             .flex_col()
             .size_full()
@@ -72,7 +113,11 @@ impl Workspace {
             .border_r_1()
             .border_color(t.chrome_line)
             .overflow_hidden()
-            .child(div().px(px(10.)).pt(px(10.)).pb(px(8.)).child(seg))
+            // Two-finger swipe anywhere on the sidebar pages between projects.
+            .on_scroll_wheel(cx.listener(Self::on_side_wheel))
+            .when(!self.add_page, |d| {
+                d.child(div().px(px(10.)).pt(px(10.)).pb(px(8.)).child(seg))
+            })
             .child(body)
             .child(
                 div()
@@ -88,25 +133,100 @@ impl Workspace {
                             .on_click(cx.listener(|this, _, w, cx| this.open_settings(w, cx))),
                     )
                     .child(
-                        ui::icon_button("add-project", "folder", 14., t).on_click(cx.listener(
-                            |this, _, w, cx| {
-                                if this.connect_form.is_some() {
-                                    this.connect_form = None;
-                                    cx.notify();
-                                } else {
-                                    this.open_connect_form(w, cx);
-                                }
-                            },
-                        )),
+                        ui::icon_button("add-project", "folder-plus", 15., t)
+                            .on_click(cx.listener(|this, _, w, cx| this.add_project(w, cx))),
                     )
-                    .child(dots)
+                    .child(pages)
+                    // Balances the two buttons on the left so the pages sit centered.
+                    .child(div().w(px(60.))),
+            )
+            .into_any_element()
+    }
+
+    /// The page after the last project: open a local repository or connect over SSH.
+    fn render_add_page(&mut self, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let hover = t.hover;
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(14.))
+            .px(px(16.))
+            .pt(px(18.))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.))
                     .child(
                         div()
-                            .pr(px(4.))
+                            .text_size(metrics::TEXT_TITLE)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t.ink)
+                            .child("Add a project"),
+                    )
+                    .child(div().text_size(metrics::TEXT_SM).text_color(t.ink_3).child(
+                        "Open a git repository on this Mac, or one on another machine over SSH.",
+                    )),
+            )
+            .child(
+                div()
+                    .id("add-local")
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .p(px(10.))
+                    .rounded(metrics::RADIUS_LG)
+                    .border_1()
+                    .border_color(t.line)
+                    .bg(t.panel)
+                    .cursor_pointer()
+                    .hover(move |s| s.bg(hover))
+                    .child(icon("folder-plus", 16., t.ink_2))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_SM)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.ink)
+                                    .child("Open folder…"),
+                            )
+                            .child(
+                                div()
+                                    .text_size(metrics::TEXT_XS)
+                                    .text_color(t.ink_3)
+                                    .child("A repository on this Mac"),
+                            ),
+                    )
+                    .on_click(cx.listener(|this, _, w, cx| this.add_project(w, cx))),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .child(
+                        div()
+                            .text_size(metrics::TEXT_XS)
+                            .text_color(t.ink_3)
+                            .child("Connect over SSH"),
+                    )
+                    .children(self.add_input.as_ref().map(|i| Input::new(i).h(px(30.))))
+                    .child(
+                        div()
                             .text_size(metrics::TEXT_XS)
                             .text_color(t.ink_faint)
-                            .child(if n > 1 { "⇆ swipe" } else { "" }),
+                            .child("Uses your ~/.ssh/config and keys. Press Enter to connect."),
                     ),
+            )
+            .child(
+                div()
+                    .pt(px(6.))
+                    .text_size(metrics::TEXT_XS)
+                    .text_color(t.ink_faint)
+                    .child("Swipe back with two fingers, or pick a dot below."),
             )
             .into_any_element()
     }
@@ -127,7 +247,6 @@ impl Workspace {
         let active = ps.active_wt;
         let wts = ps.project.worktrees.clone();
         let scanning = ps.scanning && wts.is_empty();
-        let dx = self.swipe_dx;
         let mut list = div().flex().flex_col().gap(px(1.)).px(px(8.));
         if let Some(input) = &self.new_wt {
             list = list.child(
@@ -332,12 +451,8 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .on_scroll_wheel(cx.listener(Self::on_side_wheel))
                     .child(
                         div()
-                            .relative()
-                            .left(px(dx))
-                            .opacity(1. - dx.abs() / 140.)
                             .flex()
                             .flex_col()
                             .child(

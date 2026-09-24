@@ -277,6 +277,9 @@ pub struct Workspace {
     pub toast: Option<Toast>,
     swipe_acc: f32,
     pub swipe_dx: f32,
+    /// The sidebar shows the "add a project" page (swiped past the last project).
+    pub add_page: bool,
+    pub add_input: Option<Entity<InputState>>,
     swipe_lock: Option<Instant>,
     next_id: u64,
     focus: FocusHandle,
@@ -285,7 +288,6 @@ pub struct Workspace {
     pub ahead_behind: HashMap<PathBuf, (u32, u32)>,
     pub team: Option<team::TeamState>,
     pub team_form: Option<team::TeamForm>,
-    pub connect_form: Option<Entity<InputState>>,
     pub settings_view: Option<Entity<crate::settings_view::SettingsView>>,
     /// Setup commands to run in the first terminal of freshly created worktrees.
     pending_setup: HashMap<PathBuf, String>,
@@ -363,6 +365,8 @@ impl Workspace {
             toast: None,
             swipe_acc: 0.,
             swipe_dx: 0.,
+            add_page: false,
+            add_input: None,
             swipe_lock: None,
             next_id: 1,
             focus: cx.focus_handle(),
@@ -371,7 +375,6 @@ impl Workspace {
             ahead_behind: HashMap::new(),
             team: None,
             team_form: None,
-            connect_form: None,
             settings_view: None,
             pending_setup: HashMap::new(),
             suppress_default_tab: false,
@@ -820,6 +823,7 @@ impl Workspace {
         }
         let n = self.projects.len();
         self.p = (i + n) % n;
+        self.add_page = false;
         self.store.set("active_project", &self.p);
         self.menu_open = false;
         self.handoff = None;
@@ -855,7 +859,6 @@ impl Workspace {
     }
 
     pub fn add_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.connect_form = None;
         let rx = cx.prompt_for_paths(gpui::PathPromptOptions {
             files: false,
             directories: true,
@@ -877,24 +880,30 @@ impl Workspace {
     }
 
     /// "Connect over SSH" box: `user@host:/path/to/repo`.
-    pub fn open_connect_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("user@host:/path/to/repo"));
-        self._subs.push(
-            cx.subscribe_in(&input, window, |this, s, ev: &InputEvent, window, cx| {
-                if let InputEvent::PressEnter { .. } = ev {
-                    let target = s.read(cx).value().to_string();
-                    match insyde_core::remote::parse_target(&target) {
-                        Some(path) => {
-                            this.connect_form = None;
-                            this.open_project(path, None, window, cx);
+    /// Show the sidebar's "add a project" page (the page after the last project).
+    pub fn show_add_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_page = true;
+        if self.add_input.is_none() {
+            let input =
+                cx.new(|cx| InputState::new(window, cx).placeholder("user@host:/path/to/repo"));
+            self._subs.push(cx.subscribe_in(
+                &input,
+                window,
+                |this, s, ev: &InputEvent, window, cx| {
+                    if let InputEvent::PressEnter { .. } = ev {
+                        let target = s.read(cx).value().to_string();
+                        match insyde_core::remote::parse_target(&target) {
+                            Some(path) => {
+                                s.update(cx, |s, cx| s.set_value("", window, cx));
+                                this.open_project(path, None, window, cx);
+                            }
+                            None => this.toast("Use user@host:/path/to/repo", true, cx),
                         }
-                        None => this.toast("Use user@host:/path/to/repo", true, cx),
                     }
-                }
-            }),
-        );
-        input.update(cx, |s, cx| s.focus(window, cx));
-        self.connect_form = Some(input);
+                },
+            ));
+            self.add_input = Some(input);
+        }
         cx.notify();
     }
 
@@ -2086,8 +2095,14 @@ impl Workspace {
         ) || matches!((self.drag, which), (Some(Drag::Pane { idx, .. }), w) if w == format!("pane{idx}"))
     }
 
-    /// Two-finger horizontal swipe over the sidebar switches projects.
-    fn on_side_wheel(&mut self, e: &ScrollWheelEvent, window: &mut Window, cx: &mut Context<Self>) {
+    /// Two-finger horizontal swipe over the sidebar pages through projects,
+    /// then to the "add a project" page after the last one.
+    pub(super) fn on_side_wheel(
+        &mut self,
+        e: &ScrollWheelEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let (dx, dy) = match e.delta {
             ScrollDelta::Pixels(p) => (f32::from(p.x), f32::from(p.y)),
             ScrollDelta::Lines(l) => (l.x * 20., l.y * 20.),
@@ -2096,23 +2111,29 @@ impl Workspace {
             || self
                 .swipe_lock
                 .is_some_and(|t| t.elapsed() < Duration::from_millis(520))
-            || self.projects.len() < 2
+            || self.projects.is_empty()
         {
             return;
         }
+        let n = self.projects.len();
+        let page = if self.add_page { n } else { self.p };
         self.swipe_acc -= dx;
-        if self.swipe_acc.abs() > 110. {
-            let dir = if self.swipe_acc > 0. { 1 } else { -1 };
+        let dir: i64 = if self.swipe_acc > 0. { 1 } else { -1 };
+        let target = page as i64 + dir;
+        // Resist at the ends instead of wrapping around.
+        let at_end = target < 0 || target > n as i64;
+        if self.swipe_acc.abs() > 110. && !at_end {
             self.swipe_acc = 0.;
             self.swipe_dx = 0.;
             self.swipe_lock = Some(Instant::now());
-            self.select_project(
-                (self.p as i64 + dir + self.projects.len() as i64) as usize % self.projects.len(),
-                window,
-                cx,
-            );
+            if target as usize == n {
+                self.show_add_page(window, cx);
+            } else {
+                self.select_project(target as usize, window, cx);
+            }
         } else {
-            self.swipe_dx = (-self.swipe_acc * 0.5).clamp(-70., 70.);
+            let reach = if at_end { 18. } else { 70. };
+            self.swipe_dx = (-self.swipe_acc * 0.5).clamp(-reach, reach);
             let acc_now = self.swipe_acc;
             cx.spawn(async move |this, cx| {
                 cx.background_executor()

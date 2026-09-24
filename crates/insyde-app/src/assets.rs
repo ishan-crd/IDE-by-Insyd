@@ -37,6 +37,7 @@ static ICONS: &[(&str, &[u8])] = icons![
     "cross",
     "close",
     "folder",
+    "folder-plus",
     "file",
     "trash",
     // Agent logos (LobeHub Icons, MIT; see assets/icons/agents/LICENSE).
