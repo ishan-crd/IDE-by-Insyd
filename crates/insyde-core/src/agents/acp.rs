@@ -713,7 +713,7 @@ async fn run(
                 .send_request(
                     acp::InitializeRequest::new(ProtocolVersion::V1)
                         .client_capabilities(caps)
-                        .client_info(acp::Implementation::new("insyde", env!("CARGO_PKG_VERSION")).title("InsyDE".to_string())),
+                        .client_info(acp::Implementation::new("insyde", env!("CARGO_PKG_VERSION")).title("IDE by Insyd".to_string())),
                 )
                 .block_task()
                 .await?;

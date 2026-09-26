@@ -1,6 +1,6 @@
 # AGENTS.md — instructions for the implementing agent
 
-You are building InsyDE, a native, GPU-rendered AI-agent IDE in Rust. The plan is in `docs/`; what is already built is in `docs/STATUS.md` (read it first). Crates are `insyde-theme`, `insyde-core`, `insyde-app` (the plan's `ide-*` names). Read in this order before writing code:
+You are building IDE by Insyd (formerly InsyDE), a native, GPU-rendered AI-agent IDE in Rust. The plan is in `docs/`; what is already built is in `docs/STATUS.md` (read it first). Crates are `insyde-theme`, `insyde-core`, `insyde-app` (the plan's `ide-*` names). Read in this order before writing code:
 
 1. `docs/02-STACK.md` — the stack. It is decided. Do not re-litigate it or swap crates without updating the doc and saying why.
 2. `docs/03-ARCHITECTURE.md` — crates, data model, protocols, threading rules.

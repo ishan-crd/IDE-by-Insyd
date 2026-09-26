@@ -110,7 +110,7 @@ pub struct Started {
 
 pub fn lead_prompt(spec: &TeamSpec, members: &[Started]) -> String {
     let mut s = format!(
-        "You are the lead of an InsyDE agent team.\n\nTask: {}\n\nYour team (already assigned and working):\n",
+        "You are the lead of an IDE by Insyd agent team.\n\nTask: {}\n\nYour team (already assigned and working):\n",
         spec.task.trim()
     );
     for m in members {
@@ -131,7 +131,7 @@ pub fn lead_prompt(spec: &TeamSpec, members: &[Started]) -> String {
 
 pub fn member_prompt(spec: &TeamSpec, m: &Member, lead_id: u64, branch: &str) -> String {
     format!(
-        "You are the {role} on an InsyDE agent team led by agent {lead_id}.\n\nTeam task: {task}\n\nYour assignment: {assign}\n\n\
+        "You are the {role} on an IDE by Insyd agent team led by agent {lead_id}.\n\nTeam task: {task}\n\nYour assignment: {assign}\n\n\
          You work in your own worktree on branch `{branch}`; commit your work there. \
          When you finish, run `insy coord set {role}.status done` (or `blocked: <why>`) and reply with a short summary of what you changed. \
          Use `insy agent send {lead_id} \"...\"` if you need a decision from the lead.",

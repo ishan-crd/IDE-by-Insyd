@@ -6,7 +6,7 @@ Rename note: the workspace is called `ide` and crates are `insyde-*` until a pro
 
 ## Non-negotiables
 
-1. **No Electron, no WebView for the app chrome.** WebView (wry) is allowed for exactly one thing: the optional Browser tab. The separate *web client* (a browser talking to InsyDE over the network) is HTML/JS by necessity; it has no logic of its own beyond rendering.
+1. **No Electron, no WebView for the app chrome.** WebView (wry) is allowed for exactly one thing: the optional Browser tab. The separate *web client* (a browser talking to the app over the network) is HTML/JS by necessity; it has no logic of its own beyond rendering.
 2. **Stable Rust toolchain**, pinned in `rust-toolchain.toml` (Zed and gpui-kit build on stable). If a dependency demands nightly, replace the dependency.
 3. **Every long operation off the main thread.** Main thread does layout + paint only. Budget: no main-thread task over 4 ms in debug builds (a frame watchdog logs offenders).
 4. **Agents talk protocols, not scraped terminals.** ACP first, Codex app-server second, Claude `stream-json` as a fallback. A raw PTY provider exists for arbitrary CLIs, but it is a terminal tab, not a chat.

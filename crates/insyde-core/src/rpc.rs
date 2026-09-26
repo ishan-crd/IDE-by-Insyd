@@ -151,8 +151,12 @@ pub fn serve(path: &Path, calls: flume::Sender<Call>) -> Result<()> {
 #[cfg(unix)]
 pub fn call(method: &str, params: Value) -> Result<Value> {
     let path = socket_path();
-    let mut stream = std::os::unix::net::UnixStream::connect(&path)
-        .with_context(|| format!("InsyDE isn't running (no socket at {})", path.display()))?;
+    let mut stream = std::os::unix::net::UnixStream::connect(&path).with_context(|| {
+        format!(
+            "IDE by Insyd isn't running (no socket at {})",
+            path.display()
+        )
+    })?;
     let req = Request {
         jsonrpc: "2.0".into(),
         id: Value::from(1),

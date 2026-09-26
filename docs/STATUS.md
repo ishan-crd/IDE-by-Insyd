@@ -14,9 +14,9 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 | 7 CLI / socket | Done | `insy` CLI over a 0600 Unix socket (JSON-RPC): status, worktrees, agents new/send/wait/read, brain search, open, team state. Terminals and agents get `INSYDE_SOCKET` and `insy` on PATH. PiP: terminal pop-out windows. Browser tab opens the system browser. |
 | 8 Teams | Done | Lead + specialists from the agent menu ("Team…") or `insy team run team.toml`; specialists get their own worktrees and role prompts; coordination via `insy` (pure `insy` shell commands are auto-approved); Team tab shows members and shared state. |
 | 9 Remote | Done | Open `user@host:/path` (sidebar folder button or `insy open`). Git, worktrees, terminals (`ssh -t`), agents (ACP over the SSH pipe), GitHub, the editor, search, the file tree and the brain all run on the host through one multiplexed connection. Tested end to end with a fake `ssh` (`INSYDE_SSH`). |
-| 10 Packaging | Done (macOS) | `packaging/macos/bundle.sh` builds `InsyDE.app` (app + `insy`, icon from the design mark, Info.plist), signs it (ad-hoc, or `SIGN_IDENTITY`), and makes a `.dmg` (~10 MB). Tag `v*` to publish a release from CI. Notarization needs a Developer ID. Windows/Linux builds not done. |
+| 10 Packaging | Done (macOS) | `packaging/macos/bundle.sh` builds `IDE by Insyd.app` (app + `insy`, icon from the design mark, Info.plist), signs it (ad-hoc, or `SIGN_IDENTITY`), and makes a `.dmg` (~10 MB). Tag `v*` to publish a release from CI. Notarization needs a Developer ID. Windows/Linux builds not done. |
 | Settings (new) | Done | Typed `settings.json` read by core and app; settings screen with categories, search, changed-only filter and per-setting reset; ⌘, opens it. Glass mode: blurred translucent chrome with floating sheets, adjustable tint, live toggle. |
-| Web access (new) | Done | Browser client in the InsyDE theme (projects and threads, streaming chat with approvals, model/mode/policy pickers, new thread in a new worktree, changes panel with diffs, commit/push/PR, terminal drawer with a phone key bar, command palette). Served from the app (Settings › Web access: this Mac, LAN + Tailscale, or a cloudflared public link; QR pairing) or `insy serve`. Web threads run in the server's hub, separate from the desktop's open tabs (they share history). |
+| Web access (new) | Done | Browser client in the app's theme (projects and threads, streaming chat with approvals, model/mode/policy pickers, new thread in a new worktree, changes panel with diffs, commit/push/PR, terminal drawer with a phone key bar, command palette). Served from the app (Settings › Web access: this Mac, LAN + Tailscale, or a cloudflared public link; QR pairing) or `insy serve`. Web threads run in the server's hub, separate from the desktop's open tabs (they share history). |
 | Brain (new) | Done | SiYuan-style model, graph, notes, digest injected into agent prompts. |
 
 ## Landing page
@@ -24,6 +24,14 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 `site/` is the marketing page (React + Vite), in a pnpm workspace at the repo root next to the Cargo
 workspace. It renders the app's UI from HTML components using the same tokens and icons; see
 `site/README.md`.
+
+## Name
+
+The product is **IDE by Insyd** (formerly InsyDE). The wordmark is "IDE" in heavy system sans plus "by Insyd"
+in Instrument Serif Italic (OFL, bundled in `assets/fonts/`, registered at startup; also served to the web
+client and used on the site). Internal names stay: crates `insyde-*`, the `insy` CLI, `INSYDE_*` env vars,
+the bundle id, `TERM_PROGRAM=InsyDE`, and the data folder `~/Library/Application Support/InsyDE` (so existing
+data is kept).
 
 ## Deviations from docs/02-STACK.md
 

@@ -1,4 +1,4 @@
-# site — the InsyDE landing page
+# site — the IDE by Insyd landing page
 
 React + Vite, one package in this repo's pnpm workspace (the Rust app is the Cargo workspace in `crates/`).
 

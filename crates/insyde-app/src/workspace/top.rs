@@ -149,26 +149,7 @@ impl Workspace {
             .pl(px(84.)) // native traffic lights sit here
             .pr(px(12.))
             .when(side_w > 0., |d| d.w(px(side_w)))
-            .child(
-                div()
-                    .flex()
-                    .items_baseline()
-                    .gap(px(6.))
-                    .whitespace_nowrap()
-                    .child(
-                        div()
-                            .text_size(metrics::TEXT_TITLE)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(t.ink)
-                            .child("InsyDE"),
-                    )
-                    .child(
-                        div()
-                            .text_size(metrics::TEXT_SM)
-                            .text_color(t.ink_3)
-                            .child("by Insyd"),
-                    ),
-            );
+            .child(ui::wordmark(15., t));
         // Over the agent area: brain on the left, session controls flush with
         // the agent tab bar's right edge.
         let center = div()

@@ -364,6 +364,8 @@ pub mod metrics {
     pub const TERM_H: f32 = 232.;
     pub const UI_FONT: &str = ".SystemUIFont";
     pub const MONO_FONT: &str = "Menlo";
+    /// Serif italic for the "by Insyd" half of the wordmark (bundled, OFL).
+    pub const BRAND_SERIF: &str = "Instrument Serif";
 }
 
 pub fn init(cx: &mut App, mode: Mode) {

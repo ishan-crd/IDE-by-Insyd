@@ -1,7 +1,7 @@
 {
-  "name": "InsyDE",
-  "short_name": "InsyDE",
-  "description": "Drive your InsyDE agents and terminals from any browser.",
+  "name": "IDE by Insyd",
+  "short_name": "IDE",
+  "description": "Drive your agents and terminals from any browser.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#151514",

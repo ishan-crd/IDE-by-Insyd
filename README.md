@@ -1,4 +1,4 @@
-# InsyDE by Insyd
+# IDE by Insyd
 
 A native, GPU-rendered IDE for AI coding agents, written in Rust on GPUI (Zed's UI framework).
 Every task gets its own git worktree, terminal and agent sessions; a **Project Brain** gives every
@@ -31,7 +31,7 @@ agent persistent context about the repository's main branch.
 - **Teams**: a lead plus specialists, each in its own worktree, coordinating through `insy`.
 - **Editor and review**: code editor with highlighting and ⌘S; comment on any diff line and send
   the comments to the agent.
-- **Web access**: use InsyDE from any browser, including your phone. Turn it on in Settings › Web
+- **Web access**: use IDE by Insyd from any browser, including your phone. Turn it on in Settings › Web
   access and scan the QR code (same Wi-Fi or Tailscale), or switch on a public https link through
   `cloudflared`. You get projects and threads, live agent chat with approvals, a changes panel with
   diffs, commit, push and PR, and real terminals on your Mac with a phone key bar. Headless machines
@@ -49,7 +49,7 @@ agent persistent context about the repository's main branch.
 
 ## Command line
 
-`insy` (built next to the app) controls a running InsyDE; agents inside InsyDE can use it too.
+`insy` (built next to the app) controls the running app; agents inside it can use it too.
 
 ```sh
 insy status                         # project, worktree, open agents
@@ -81,8 +81,8 @@ cargo build -p insyde-app --release --no-default-features
 ## Package
 
 ```sh
-packaging/macos/bundle.sh     # target/release/bundle/InsyDE.app and InsyDE-<version>.dmg
-ln -sf /Applications/InsyDE.app/Contents/MacOS/insy /usr/local/bin/insy   # CLI on PATH
+packaging/macos/bundle.sh     # "target/release/bundle/IDE by Insyd.app" and IDE-by-Insyd-<version>.dmg
+ln -sf "/Applications/IDE by Insyd.app/Contents/MacOS/insy" /usr/local/bin/insy   # CLI on PATH
 ```
 
 Pushing a `v*` tag builds the `.dmg` in CI and attaches it to a GitHub release. Builds are
@@ -94,7 +94,7 @@ ad-hoc signed; set `SIGN_IDENTITY` to a Developer ID for distribution (and notar
 crates/insyde-theme   design tokens (light/dark) from design/InsyDE.dc.html
 crates/insyde-core    git, worktrees, gh, SQLite store, PTY terminals, ACP client, Project Brain
 crates/insyde-app     GPUI app: workspace, chat, terminal view, brain view, editor
-crates/insyde-cli     `insy`, the command-line client for a running InsyDE
+crates/insyde-cli     `insy`, the command-line client for the running app
 packaging/macos       app bundle, icon and dmg script
 docs/                 research, stack, architecture, plan, status
 ```

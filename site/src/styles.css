@@ -1,4 +1,4 @@
-/* InsyDE site. The IDE's own dark tokens (design/InsyDE.dc.html, web/app.css)
+/* IDE by Insyd site. The IDE's own dark tokens (design/InsyDE.dc.html, web/app.css)
    drive the product components. The page itself stays quiet: one static
    gradient, flat panels, short reveals. */
 
@@ -60,14 +60,15 @@ img, svg { display: block; }
 .nav { position: fixed; inset: 0 0 auto; z-index: 50; transition: background-color .2s ease, border-color .2s ease; border-bottom: 1px solid transparent; }
 .nav.scrolled { background: rgba(11,11,10,.86); border-bottom-color: var(--surface-line); }
 .nav-in { height: 64px; display: flex; align-items: center; gap: 28px; }
-.logo { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -.01em; }
+.logo { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+.logo b { font-weight: 800; letter-spacing: -.04em; font-size: 17px; }
+.logo .by { font-family: var(--serif); font-style: italic; font-size: 20px; color: var(--ink-2); line-height: 1; margin-left: -2px; }
 .logo img { width: 24px; height: 24px; }
-.logo small { color: var(--ink-3); font-weight: 400; font-size: 13px; }
 .nav-links { display: flex; gap: 24px; font-size: 14px; color: var(--ink-3); }
 .nav-links a:hover { color: var(--ink); }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 @media (max-width: 820px) { .nav-links { display: none; } }
-@media (max-width: 560px) { .logo small, .nav-right .btn-ghost { display: none; } }
+@media (max-width: 560px) { .nav-right .btn-ghost { display: none; } }
 
 /* ---------- hero (centered) ---------- */
 .hero { padding-top: 150px; text-align: center; }
@@ -172,8 +173,8 @@ footer { border-top: 1px solid var(--surface-line); padding: 36px 0 56px; color:
 .ide-top { height: 48px; flex: none; display: flex; align-items: center; background: #1B1B1A; border-bottom: 1px solid var(--line); }
 .ide-top .col-side { display: flex; align-items: center; gap: 10px; padding-left: 16px; }
 .ide-top .brand { display: flex; align-items: baseline; gap: 6px; margin-left: 14px; white-space: nowrap; }
-.ide-top .brand b { font-size: 14px; font-weight: 600; }
-.ide-top .brand span { font-size: 12px; color: var(--ink-3); }
+.ide-top .brand b { font-size: 15px; font-weight: 800; letter-spacing: -.03em; }
+.ide-top .brand span { font-family: var(--serif); font-style: italic; font-size: 18px; color: var(--ink-2); line-height: 1; }
 .ide-top .col-mid { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 10px; }
 .ide-top .col-right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 12px; }
 .ghost { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border-radius: 6px; color: var(--ink); font-weight: 500; white-space: nowrap; }

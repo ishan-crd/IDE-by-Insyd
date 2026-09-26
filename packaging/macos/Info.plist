@@ -2,11 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>InsyDE</string>
-  <key>CFBundleDisplayName</key><string>InsyDE</string>
+  <key>CFBundleName</key><string>IDE by Insyd</string>
+  <key>CFBundleDisplayName</key><string>IDE by Insyd</string>
   <key>CFBundleIdentifier</key><string>com.insyd.insyde</string>
   <key>CFBundleExecutable</key><string>insyde</string>
-  <key>CFBundleIconFile</key><string>InsyDE</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>__VERSION__</string>
   <key>CFBundleVersion</key><string>__VERSION__</string>

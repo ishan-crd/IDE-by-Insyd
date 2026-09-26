@@ -1,4 +1,4 @@
-// InsyDE's interface, rebuilt in HTML from the desktop app's layout and tokens
+// The app's interface, rebuilt in HTML from the desktop app's layout and tokens
 // so the page can animate it. Names match the app's regions (top bar, sidebar,
 // agent tabs, chat, right panel, terminals, status bar).
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
@@ -66,7 +66,7 @@ export function TopBar({ side = 250, right = 300, compact = false }: { side?: nu
     <div className="ide-top">
       <div className="col-side" style={{ width: side }}>
         <div className="tl"><i /><i /><i /></div>
-        <div className="brand"><b>InsyDE</b><span>by Insyd</span></div>
+        <div className="brand"><b>IDE</b><span>by Insyd</span></div>
       </div>
       <div className="col-mid">
         <span className="ghost"><Ic n="brain" s={15} style={{ color: 'var(--ink-2)' }} />Context<span className="n">1,313</span></span>

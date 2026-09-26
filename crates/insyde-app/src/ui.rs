@@ -266,6 +266,32 @@ pub fn mono_text(t: &Theme) -> Div {
 }
 
 /// Single-line text that ellipsizes.
+/// The wordmark: "IDE" in heavy, tight sans, "by Insyd" in serif italic.
+/// `size` is the height of "IDE"; the serif runs a little larger so the two
+/// halves share a baseline and optical weight.
+pub fn wordmark(size: f32, t: &Theme) -> Div {
+    div()
+        .flex()
+        .items_baseline()
+        .gap(px(size * 0.32))
+        .whitespace_nowrap()
+        .child(
+            div()
+                .text_size(px(size))
+                .font_weight(FontWeight::EXTRA_BOLD)
+                .text_color(t.ink)
+                .child("IDE"),
+        )
+        .child(
+            div()
+                .font_family(metrics::BRAND_SERIF)
+                .italic()
+                .text_size(px(size * 1.2))
+                .text_color(t.ink_2)
+                .child("by Insyd"),
+        )
+}
+
 pub fn trunc(text: impl Into<SharedString>) -> Div {
     div()
         .min_w_0()

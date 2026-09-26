@@ -16,6 +16,7 @@ pub struct Store {
 
 pub fn data_dir() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(std::env::temp_dir);
+    // The app's former name; kept so existing projects, sessions and settings stay put.
     let d = base.join("InsyDE");
     let _ = std::fs::create_dir_all(&d);
     d

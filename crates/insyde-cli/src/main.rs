@@ -7,7 +7,7 @@ use anyhow::{Result, bail};
 use insyde_core::rpc::call;
 use serde_json::{Value, json};
 
-const HELP: &str = "insy — control InsyDE from the command line
+const HELP: &str = "insy — control IDE by Insyd from the command line
 
 USAGE
   insy status                                  projects, active worktree, open agents
@@ -30,7 +30,7 @@ USAGE
 
 Add --json to print raw JSON.";
 
-const INSTRUCTIONS: &str = "You are running inside InsyDE. You can coordinate with other agents:
+const INSTRUCTIONS: &str = "You are running inside IDE by Insyd. You can coordinate with other agents:
 - `insy agent list` shows every agent tab (id, agent, worktree, running).
 - `insy agent send <id> \"message\"` messages another agent; `insy agent wait <id>` waits for it; `insy agent read <id>` reads its last reply.
 - `insy coord set <key> <value>` / `insy coord get <key>` share state (plans, hand-offs, status) with the team.
@@ -258,7 +258,7 @@ fn serve(mut args: Vec<String>) -> Result<()> {
     let store = insyde_core::store::Store::open_default()?;
     let server = insyde_core::web::WebServer::start(store, port, network, tunnel)?;
     println!(
-        "InsyDE web is running on {}. Press Ctrl-C to stop.\n",
+        "IDE by Insyd web is running on {}. Press Ctrl-C to stop.\n",
         server.hub.host
     );
     let mut printed = 0;

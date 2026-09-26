@@ -17,7 +17,7 @@ impl Workspace {
             Ok(()) => self.log(format!("Control socket at {}", path.display())),
             Err(e) => {
                 self.log(format!(
-                    "Control socket unavailable ({e}); is another InsyDE running?"
+                    "Control socket unavailable ({e}); is another IDE by Insyd running?"
                 ));
                 return;
             }

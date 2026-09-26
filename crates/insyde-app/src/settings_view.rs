@@ -74,7 +74,7 @@ impl Cat {
             Cat::Worktrees => "Where task worktrees live and what happens when one is created.",
             Cat::Terminal => "How many open, the Run button, font, scrollback, shell and keys.",
             Cat::Editor => "The file editor in the right panel.",
-            Cat::Alerts => "When InsyDE should tap you on the shoulder.",
+            Cat::Alerts => "When the app should tap you on the shoulder.",
             Cat::Web => {
                 "Use this Mac's agents, changes and terminals from a browser on your phone or any computer."
             }
@@ -576,7 +576,7 @@ impl SettingsView {
         tile!(
             Cat::Agents,
             "Open new agents in",
-            "What + Agent opens: InsyDE's chat window, or the agent's own app in a terminal tab. Also switchable at the bottom of the + Agent menu; holding ⌘ picks the other one.",
+            "What + Agent opens: the built-in chat window, or the agent's own app in a terminal tab. Also switchable at the bottom of the + Agent menu; holding ⌘ picks the other one.",
             s.open_agents_as != d.open_agents_as,
             Some(|s: &mut Settings| s.open_agents_as = OpenAs::Chat),
             self.choice(
@@ -1045,7 +1045,7 @@ impl SettingsView {
         );
         tile!(
             Cat::Alerts,
-            "Only when InsyDE is in the background",
+            "Only when the app is in the background",
             "Stay quiet while you're looking at the app.",
             s.notify_only_background != d.notify_only_background,
             Some(|s: &mut Settings| s.notify_only_background = true),
@@ -1063,7 +1063,7 @@ impl SettingsView {
         tile!(
             Cat::Web,
             "Web access",
-            "Serve the InsyDE web client from this Mac while the app is open. Browsers pair once with a private link.",
+            "Serve the web client from this Mac while the app is open. Browsers pair once with a private link.",
             s.web_access != d.web_access,
             Some(|s: &mut Settings| s.web_access = Settings::default().web_access),
             self.toggle("web-access", s.web_access, |s, v| s.web_access = v, t, cx)
@@ -1117,7 +1117,7 @@ impl SettingsView {
         tile!(
             Cat::Data,
             "Local control socket",
-            "Lets `insy` and agents drive InsyDE. Only your user can connect. Takes effect after restart.",
+            "Lets `insy` and agents drive the app. Only your user can connect. Takes effect after restart.",
             s.control_socket != d.control_socket,
             Some(|s: &mut Settings| s.control_socket = true),
             self.toggle(
@@ -1405,7 +1405,7 @@ impl SettingsView {
                         .flex_1()
                         .text_size(metrics::TEXT_SM)
                         .text_color(t.ink_3)
-                        .child("Turn on Web access to open InsyDE from a browser. Your agents, changes and terminals keep running here; the browser is a window onto them."),
+                        .child("Turn on Web access to use IDE by Insyd from a browser. Your agents, changes and terminals keep running here; the browser is a window onto them."),
                 )
                 .into_any_element();
         };
@@ -1617,13 +1617,7 @@ impl SettingsView {
             .border_1()
             .border_color(t.line)
             .rounded(metrics::RADIUS_LG)
-            .child(
-                div()
-                    .text_size(px(18.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(t.ink)
-                    .child("InsyDE by Insyd"),
-            )
+            .child(ui::wordmark(18., t))
             .child(
                 div()
                     .pb(px(8.))

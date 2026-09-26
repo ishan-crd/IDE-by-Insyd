@@ -45,7 +45,7 @@ function layout() {
   el.termBtn = h('button', { class: 'tool-btn', title: 'Terminal (⌘J)', onclick: () => toggleTerm() }, glyph('terminal'), h('span', { class: 'tool-label' }, 'Terminal'));
   el.top = h('header', { class: 'top' },
     el.menuBtn,
-    h('div', { class: 'brand' }, h('span', { class: 'brand-name' }, 'InsyDE'), h('span', { class: 'brand-by' }, 'by Insyd')),
+    h('div', { class: 'brand' }, h('span', { class: 'brand-name' }, 'IDE'), h('span', { class: 'brand-by' }, 'by Insyd')),
     h('button', { class: 'host-pill', title: 'Connection', onclick: (e) => hostMenu(e.currentTarget) }, el.conn, el.host, h('span', { class: 'web-tag' }, 'Web')),
     el.topTitle,
     h('div', { class: 'spacer' }),
@@ -183,7 +183,7 @@ conn.on('open', async () => {
   try {
     S.hello = await conn.call('hello');
     el.host.textContent = S.hello.host;
-    document.title = `InsyDE · ${S.hello.host}`;
+    document.title = `IDE by Insyd · ${S.hello.host}`;
     S.useBrain = S.hello.brain_by_default;
     applyTheme();
     await loadProjects();
@@ -218,8 +218,8 @@ function pairing() {
   document.getElementById('app').replaceChildren(h('div', { class: 'pair' },
     h('div', { class: 'pair-card' },
       h('img', { src: '/icon.svg', class: 'pair-logo', alt: '' }),
-      h('h1', null, 'Connect to your InsyDE'),
-      h('p', null, 'On the computer running InsyDE, open Settings › Web access and scan the QR code, or copy the link and paste it here.'),
+      h('h1', null, 'Connect to IDE by Insyd'),
+      h('p', null, 'On the computer running IDE by Insyd, open Settings › Web access and scan the QR code, or copy the link and paste it here.'),
       input,
       h('button', { class: 'btn primary wide', onclick: go }, 'Connect'),
       h('p', { class: 'pair-note' }, 'The link works like a key to that computer. Only open it on devices you trust.'))));
@@ -391,7 +391,7 @@ function renderNew() {
   if (!S.projects.length) {
     fill(el.center, h('div', { class: 'hero' },
       h('img', { src: '/icon.svg', class: 'hero-logo', alt: '' }),
-      h('h1', null, 'Welcome to InsyDE on the web'),
+      h('h1', null, 'Welcome to IDE by Insyd on the web'),
       h('p', null, `Add a repository on ${S.hello?.host || 'your machine'} to start a thread with an agent.`),
       h('button', { class: 'btn primary', onclick: addProject }, icon('folder', 14), 'Add project')));
     return;
@@ -790,7 +790,7 @@ function renderStatus() {
     h('span', { class: 'st-item' }, `${running} running`),
     waiting ? h('span', { class: 'st-item warn' }, `${waiting} need approval`) : null,
     h('div', { class: 'spacer' }),
-    h('span', { class: 'st-item' }, S.hello ? `${S.hello.host} · InsyDE ${S.hello.version}` : ''));
+    h('span', { class: 'st-item' }, S.hello ? `${S.hello.host} · IDE by Insyd ${S.hello.version}` : ''));
 }
 
 // ---------- host menu & scripts ----------

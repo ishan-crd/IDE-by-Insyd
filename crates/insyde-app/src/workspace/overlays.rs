@@ -637,7 +637,7 @@ impl Workspace {
             .justify_center()
             .gap(px(12.))
             .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).child("Open a repository"))
-            .child(div().max_w(px(380.)).text_center().text_size(metrics::TEXT_SM).text_color(t.ink_3).child("InsyDE runs coding agents in isolated git worktrees. Pick a git repository to get started."))
+            .child(div().max_w(px(380.)).text_center().text_size(metrics::TEXT_SM).text_color(t.ink_3).child("IDE by Insyd runs coding agents in isolated git worktrees. Pick a git repository to get started."))
             .child(ui::primary_button("open-repo", t).child(icon("folder", 13., t.on_primary)).child("Open repository…").on_click(cx.listener(|this, _, w, cx| this.add_project(w, cx))))
             .into_any_element()
     }

@@ -120,7 +120,7 @@ impl WebServer {
             Ipv4Addr::LOCALHOST
         };
         let listener = TcpListener::bind(SocketAddr::from((ip, port)))
-            .with_context(|| format!("port {port} is in use (is another InsyDE serving?)"))?;
+            .with_context(|| format!("port {port} is in use (is another IDE by Insyd serving?)"))?;
         let stop = Arc::new(AtomicBool::new(false));
         let (h, st) = (hub.clone(), stop.clone());
         let accept = std::thread::Builder::new()

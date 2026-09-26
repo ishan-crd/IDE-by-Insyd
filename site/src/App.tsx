@@ -30,7 +30,7 @@ function Nav() {
   return (
     <nav className={`nav${scrolled ? ' scrolled' : ''}`}>
       <div className="wrap nav-in">
-        <a href="#" className="logo"><img src="/icon.svg" alt="" />InsyDE <small>by Insyd</small></a>
+        <a href="#" className="logo"><img src="/icon.svg" alt="" /><b>IDE</b><span className="by">by Insyd</span></a>
         <div className="nav-links">
           <a href="#how">How it works</a><a href="#agents">Agents</a><a href="#features">Features</a><a href="#native">Native</a>
         </div>
@@ -161,7 +161,7 @@ function VisualHandoff() {
 }
 
 const STEPS = [
-  { t: 'One task, one worktree.', p: 'Type a task and InsyDE branches it, creates a git worktree, copies your .env files and runs your setup command. Agents never trip over each other.',
+  { t: 'One task, one worktree.', p: 'Type a task and you get a branch, a git worktree with your .env files copied in, and your setup command already running. Agents never trip over each other.',
     li: ['Worktree ready in about 0.1 s', 'Diff stats and status for every branch in the sidebar', 'Local repos or any machine over SSH'], v: <VisualWorktrees /> },
   { t: 'Real agents, real protocols.', p: 'Chats run over the Agent Client Protocol, so you get tool calls, plans, permission prompts and cost, not a scraped terminal. Prefer the agent’s own UI? Open it in a terminal tab.',
     li: ['Streaming markdown and tool-call cards', 'Ask, auto-approve edits, or skip prompts', 'Transcripts are saved before they are shown'], v: <VisualChat /> },
@@ -337,7 +337,7 @@ function Features() {
           <Card className="span-2" title="Right-click everything" body="Open files in a new tab or next to your agents, reveal, copy, rename, trash.">
             <div style={{ position: 'absolute', inset: '0 0 -28px', display: 'flex', justifyContent: 'center', maskImage: 'linear-gradient(#000 70%, transparent)' }}><FileMenu /></div>
           </Card>
-          <Card className="span-4" title="A Project Brain for every repo" body="InsyDE reads main once (files, symbols, routes, merged PRs, decisions) and keeps a searchable graph. Agents get the relevant slice with their first message.">
+          <Card className="span-4" title="A Project Brain for every repo" body="It reads main once (files, symbols, routes, merged PRs, decisions) and keeps a searchable graph. Agents get the relevant slice with their first message.">
             <BrainGraph />
           </Card>
           <Card className="span-3" title="Your agents, from your phone" body="Pair a phone by QR and keep working from the couch. Agents, diffs and terminals keep running on your Mac.">
@@ -398,7 +398,7 @@ function Native() {
       <div className="wrap">
         <Reveal><div className="eyebrow">Native to the core</div></Reveal>
         <Reveal delay={0.05}><h2 className="h2">Not a web page <span className="it">in a trench coat.</span></h2></Reveal>
-        <Reveal delay={0.1}><p className="sub">InsyDE is a macOS app written entirely in Rust. It opens fast, stays small, and doesn’t start a browser to show you a list.</p></Reveal>
+        <Reveal delay={0.1}><p className="sub">IDE by Insyd is a macOS app written entirely in Rust. It opens fast, stays small, and doesn’t start a browser to show you a list.</p></Reveal>
         <Reveal delay={0.1}>
           <div className="stack">
             {items.map((it) => (
@@ -435,7 +435,7 @@ function Footer() {
   return (
     <footer>
       <div className="wrap foot">
-        <a href="#" className="logo"><img src="/icon.svg" alt="" style={{ width: 22, height: 22 }} />InsyDE <small>by Insyd</small></a>
+        <a href="#" className="logo"><img src="/icon.svg" alt="" style={{ width: 22, height: 22 }} /><b>IDE</b><span className="by">by Insyd</span></a>
         <span style={{ flex: 1 }} />
         <a href="#how">How it works</a><a href="#features">Features</a><a href={GITHUB} target="_blank" rel="noreferrer">GitHub</a>
         <span>Agent logos: LobeHub Icons (MIT)</span>

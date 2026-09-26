@@ -3,7 +3,7 @@ name = "insyde-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "InsyDE core: git, worktrees, terminals, agents (ACP), project brain, persistence. No UI dependency."
+description = "IDE by Insyd core: git, worktrees, terminals, agents (ACP), project brain, persistence. No UI dependency."
 
 [dependencies]
 anyhow.workspace = true

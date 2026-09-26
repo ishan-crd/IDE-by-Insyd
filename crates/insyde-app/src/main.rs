@@ -99,7 +99,7 @@ fn main() {
         )
         .init();
     insyde_core::agents::warm_path();
-    let store = Store::open_default().expect("open InsyDE database");
+    let store = Store::open_default().expect("open the IDE by Insyd database");
     // Settings › Web access: serve the browser client while the app runs.
     web_access::sync(&store);
     gpui_platform::application()
@@ -107,6 +107,12 @@ fn main() {
         .run(move |cx: &mut App| {
             tracing::debug!("startup: app running after {:?}", t0.elapsed());
             gpui_component::init(cx);
+            // The wordmark's serif (Instrument Serif Italic, OFL; assets/fonts/OFL.txt).
+            if let Err(e) = cx.text_system().add_fonts(vec![std::borrow::Cow::Borrowed(
+                include_bytes!("../../../assets/fonts/InstrumentSerif-Italic.ttf").as_slice(),
+            )]) {
+                tracing::warn!("brand font: {e}");
+            }
             insyde_theme::init(cx, Mode::Dark);
             prefs::apply_theme(cx);
             cx.bind_keys([
@@ -134,7 +140,7 @@ fn main() {
             let opts = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitlebarOptions {
-                    title: Some("InsyDE".into()),
+                    title: Some("IDE by Insyd".into()),
                     appears_transparent: true,
                     traffic_light_position: Some(point(px(16.), px(17.))),
                 }),

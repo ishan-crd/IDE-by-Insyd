@@ -3,7 +3,7 @@ name = "insyde-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "InsyDE desktop app (GPUI)."
+description = "IDE by Insyd desktop app (GPUI)."
 
 [features]
 # Compile Metal shaders at launch (~0.8s) so the app builds without Xcode's

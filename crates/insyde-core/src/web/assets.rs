@@ -19,6 +19,7 @@ static FILES: &[(&str, &str, &[u8])] = files![
     "/ui.js" => "web/ui.js",
     "/manifest.json" => "web/manifest.json",
     "/icon.svg" => "web/icon.svg",
+    "/fonts/InstrumentSerif-Italic.ttf" => "assets/fonts/InstrumentSerif-Italic.ttf",
     "/vendor/xterm.mjs" => "web/vendor/xterm.mjs",
     "/vendor/xterm.css" => "web/vendor/xterm.css",
     "/vendor/addon-fit.mjs" => "web/vendor/addon-fit.mjs",
@@ -77,6 +78,7 @@ fn content_type(path: &str) -> &'static str {
     match path.rsplit('.').next() {
         _ if path == "/" => "text/html; charset=utf-8",
         Some("css") => "text/css; charset=utf-8",
+        Some("ttf") => "font/ttf",
         Some("js" | "mjs") => "text/javascript; charset=utf-8",
         Some("json") => "application/manifest+json",
         Some("svg") => "image/svg+xml",

@@ -155,7 +155,7 @@ impl Workspace {
                     col = col.child(
                         div()
                             .text_color(t.ink_3)
-                            .child("InsyDE activity (git, PRs, brain builds) appears here."),
+                            .child("App activity (git, PRs, brain builds) appears here."),
                     );
                 }
                 div()
