@@ -1,4 +1,4 @@
-//! Top bar, in three columns over the panes below: brand (sidebar); Project Brain
+//! Top bar, in three columns over the panes below: traffic lights (sidebar); Project Brain
 //! and the agent count / history / Hand off (agent area); cost, layout, theme and
 //! the Run button with its menu (right panel).
 
@@ -141,15 +141,8 @@ impl Workspace {
         // so each group stays over its pane as the panes are resized.
         let (side_w, right_w, _) = self.sizes();
         let gap = if t.glass { super::GLASS_GAP } else { 0. };
-        let brand = div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .h_full()
-            .pl(px(84.)) // native traffic lights sit here
-            .pr(px(12.))
-            .when(side_w > 0., |d| d.w(px(side_w)))
-            .child(ui::wordmark(15., t));
+        // Over the sidebar: empty, apart from the native traffic lights.
+        let lead = div().flex_none().h_full().w(px(side_w.max(84.)));
         // Over the agent area: brain on the left, session controls flush with
         // the agent tab bar's right edge.
         let center = div()
@@ -205,7 +198,7 @@ impl Workspace {
             .bg(t.chrome)
             .border_b_1()
             .border_color(t.chrome_line)
-            .child(brand)
+            .child(lead)
             .child(center)
             .child(tools)
             .into_any_element()

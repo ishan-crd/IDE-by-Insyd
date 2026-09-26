@@ -43,7 +43,7 @@ data is kept).
   pasteboard) are named directly; both were already in the tree through gpui.
 - **Shaders**: default feature `runtime-shaders` compiles Metal shaders at launch (~0.8 s) because
   the Metal toolchain isn't installed by default in Xcode 26. See README for the fast path.
-- **Top bar layout**: three columns sized to the panes below (brand over the sidebar; Brain,
+- **Top bar layout**: three columns sized to the panes below (only the traffic lights over the sidebar, no wordmark; Brain,
   agent count, history and Hand off over the agent area; cost, layout, theme and Run over the right
   panel), so each group follows its pane when resized. The design's context meter is omitted
   (user request); Hand off / history popovers anchor under their buttons.
