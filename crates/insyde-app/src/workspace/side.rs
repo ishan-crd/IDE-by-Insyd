@@ -9,6 +9,7 @@ use gpui_component::input::Input;
 use insyde_core::project::WtStatus;
 use insyde_theme::{Theme, metrics};
 use std::path::PathBuf;
+use std::time::Instant;
 
 impl Workspace {
     pub(super) fn render_side(
@@ -17,48 +18,41 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let tab_ix = match self.side_tab {
-            SideTab::Worktrees => 0,
-            SideTab::Files => 1,
-            SideTab::Search => 2,
-        };
-        let seg = ui::segmented(
-            "side-seg",
-            &["Worktrees", "Files", "Search"],
-            tab_ix,
-            t,
-            true,
-            26.,
-            {
-                let e = cx.entity().downgrade();
-                move |i, _, cx| {
-                    let _ = e.update(cx, |this, cx| {
-                        this.side_tab = [SideTab::Worktrees, SideTab::Files, SideTab::Search][i];
-                        cx.notify();
-                    });
-                }
-            },
-        );
-        let body = if self.add_page {
-            self.render_add_page(t, cx)
-        } else {
-            match self.side_tab {
-                SideTab::Worktrees => self.render_worktrees(t, window, cx),
-                SideTab::Files => self.render_files(t, cx),
-                SideTab::Search => self.render_search(t, cx),
-            }
-        };
-        // The page slides with the swipe and settles back on release.
-        let dx = self.swipe_dx;
-        let body = div()
-            .relative()
-            .left(px(dx))
-            .opacity(1. - dx.abs() / 140.)
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h_0()
-            .child(body);
+        // The pages sit side by side in a strip; only the one on screen and
+        // the neighbour being pulled in are built.
+        let now = Instant::now();
+        self.tick_paging(now, window);
+        let offset = self.page_offset(now);
+        let width = self.sizes().0;
+        let (cur, last) = (self.page(), self.projects.len());
+        let mut shown = vec![cur];
+        if offset > 0.5 && cur > 0 {
+            shown.push(cur - 1);
+        }
+        if offset < -0.5 && cur < last {
+            shown.push(cur + 1);
+        }
+        let mut strip = div().relative().flex_1().min_h_0().overflow_hidden();
+        for i in shown {
+            let page = if i == last {
+                self.render_add_page(t, cx)
+            } else {
+                self.render_project_page(i, i == cur, t, window, cx)
+            };
+            strip = strip.child(
+                div()
+                    .id(SharedString::from(format!("sp-{i}")))
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left(px((i as f32 - cur as f32) * width + offset))
+                    .w(px(width))
+                    .flex()
+                    .flex_col()
+                    .min_h_0()
+                    .child(page),
+            );
+        }
 
         // Page indicator: a dot per project, the current one as its letter,
         // then "+" for the add-a-project page.
@@ -95,13 +89,16 @@ impl Workspace {
                     .cursor_pointer()
                     .hover(move |s| s.bg(hover))
                     .child(div().size(px(5.)).rounded_full().bg(t.ink_disabled))
-                    .on_click(cx.listener(move |this, _, w, cx| this.select_project(i, w, cx)))
+                    .on_click(cx.listener(move |this, _, w, cx| this.go_to_page(i, None, w, cx)))
             });
         }
         pages = pages.child(
             ui::icon_button("page-add", "plus", 13., t)
                 .when(self.add_page, |d| d.bg(t.hover_2))
-                .on_click(cx.listener(|this, _, w, cx| this.show_add_page(w, cx))),
+                .on_click(cx.listener(|this, _, w, cx| {
+                    let last = this.projects.len();
+                    this.go_to_page(last, None, w, cx)
+                })),
         );
         div()
             .id("sidebar")
@@ -115,10 +112,7 @@ impl Workspace {
             .overflow_hidden()
             // Two-finger swipe anywhere on the sidebar pages between projects.
             .on_scroll_wheel(cx.listener(Self::on_side_wheel))
-            .when(!self.add_page, |d| {
-                d.child(div().px(px(10.)).pt(px(10.)).pb(px(8.)).child(seg))
-            })
-            .child(body)
+            .child(strip)
             .child(
                 div()
                     .px(px(10.))
@@ -140,6 +134,58 @@ impl Workspace {
                     // Balances the two buttons on the left so the pages sit centered.
                     .child(div().w(px(60.))),
             )
+            .into_any_element()
+    }
+
+    /// One project's page: the Worktrees / Files / Search tabs and the chosen
+    /// one. A page being pulled in by a swipe shows its worktrees.
+    fn render_project_page(
+        &mut self,
+        i: usize,
+        current: bool,
+        t: &Theme,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let tab = if current {
+            self.side_tab
+        } else {
+            SideTab::Worktrees
+        };
+        let tab_ix = match tab {
+            SideTab::Worktrees => 0,
+            SideTab::Files => 1,
+            SideTab::Search => 2,
+        };
+        let seg = ui::segmented(
+            "side-seg",
+            &["Worktrees", "Files", "Search"],
+            tab_ix,
+            t,
+            true,
+            26.,
+            {
+                let e = cx.entity().downgrade();
+                move |i, _, cx| {
+                    let _ = e.update(cx, |this, cx| {
+                        this.side_tab = [SideTab::Worktrees, SideTab::Files, SideTab::Search][i];
+                        cx.notify();
+                    });
+                }
+            },
+        );
+        let body = match tab {
+            SideTab::Worktrees => self.render_worktrees(i, t, window, cx),
+            SideTab::Files => self.render_files(t, cx),
+            SideTab::Search => self.render_search(t, cx),
+        };
+        div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .min_h_0()
+            .child(div().px(px(10.)).pt(px(10.)).pb(px(8.)).child(seg))
+            .child(body)
             .into_any_element()
     }
 
@@ -233,13 +279,15 @@ impl Workspace {
 
     fn render_worktrees(
         &mut self,
+        pi: usize,
         t: &Theme,
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let Some(ps) = self.project() else {
+        let Some(ps) = self.projects.get(pi) else {
             return div().into_any_element();
         };
+        let current = pi == self.p && !self.add_page;
         let live = self.live_worktrees(cx);
         let proj_name = ps.project.name.clone();
         let letter = ps.project.letter();
@@ -248,7 +296,7 @@ impl Workspace {
         let wts = ps.project.worktrees.clone();
         let scanning = ps.scanning && wts.is_empty();
         let mut list = div().flex().flex_col().gap(px(1.)).px(px(8.));
-        if let Some(input) = &self.new_wt {
+        if let (true, Some(input)) = (current, &self.new_wt) {
             list = list.child(
                 div()
                     .px(px(4.))
@@ -257,7 +305,7 @@ impl Workspace {
             );
         }
         for (i, w) in wts.iter().enumerate() {
-            let is_active = i == active;
+            let is_active = current && i == active;
             let is_live = live.contains(&w.path);
             let color = if is_live {
                 t.ok
@@ -327,7 +375,12 @@ impl Workspace {
                     gpui::transparent_black()
                 })
                 .hover(move |s| s.bg(hover))
-                .on_click(cx.listener(move |this, _, w, cx| this.select_wt(i, w, cx)))
+                .on_click(cx.listener(move |this, _, w, cx| {
+                    if !current {
+                        this.go_to_page(pi, None, w, cx);
+                    }
+                    this.select_wt(i, w, cx)
+                }))
                 .child(
                     div()
                         .w(px(12.))
@@ -501,7 +554,10 @@ impl Workspace {
                                     .child(
                                         ui::icon_button("new-wt", "plus", 12., t)
                                             .size(px(24.))
-                                            .on_click(cx.listener(|this, _, w, cx| {
+                                            .on_click(cx.listener(move |this, _, w, cx| {
+                                                if !current {
+                                                    this.go_to_page(pi, None, w, cx);
+                                                }
                                                 this.start_new_worktree(w, cx)
                                             })),
                                     ),

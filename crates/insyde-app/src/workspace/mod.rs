@@ -227,6 +227,38 @@ impl Default for LayoutPrefs {
     }
 }
 
+/// The sidebar's swipe between pages, iOS style: the pages follow the fingers
+/// and snap to the nearest one (or turn on a flick) when they lift.
+#[derive(Default)]
+pub struct Paging {
+    /// A trackpad gesture is in progress.
+    live: bool,
+    /// Which way the gesture went, decided from its first few pixels.
+    axis: Option<gpui::Axis>,
+    /// Movement seen while the axis is still undecided.
+    probe: (f32, f32),
+    /// Finger travel this gesture, px; positive pulls the previous page in.
+    drag: f32,
+    /// Smoothed finger velocity, px/s.
+    vel: f32,
+    last: Option<Instant>,
+    /// Mouse wheels have no gesture: sideways travel since the last quiet moment.
+    wheel: f32,
+    wheel_at: Option<Instant>,
+    /// A slide in progress: the strip started `from` px off and eases to 0.
+    anim: Option<(f32, Instant, Duration)>,
+}
+
+/// How far a drag past the first or last page gets, in px: it gives a little, then holds.
+fn rubber(x: f32) -> f32 {
+    let cap = 56.;
+    x.signum() * cap * x.abs() / (x.abs() + cap)
+}
+
+fn ease_out(t: f32) -> f32 {
+    1. - (1. - t).powi(3)
+}
+
 pub struct Handoff {
     pub target: usize,
     pub opts: [bool; 5],
@@ -275,15 +307,11 @@ pub struct Workspace {
     pub confirm_delete: Option<PathBuf>,
     pub logs: Vec<String>,
     pub toast: Option<Toast>,
-    swipe_acc: f32,
-    pub swipe_dx: f32,
+    /// Sidebar paging: every project is a page, "add a project" is the last one.
+    paging: Paging,
     /// The sidebar shows the "add a project" page (swiped past the last project).
     pub add_page: bool,
     pub add_input: Option<Entity<InputState>>,
-    swipe_lock: Option<Instant>,
-    /// A trackpad gesture is in progress and hasn't switched pages yet. One
-    /// gesture switches at most once; momentum after lift-off is ignored.
-    swipe_armed: bool,
     next_id: u64,
     focus: FocusHandle,
     pub window_size: (f32, f32),
@@ -366,12 +394,9 @@ impl Workspace {
             confirm_delete: None,
             logs: vec![],
             toast: None,
-            swipe_acc: 0.,
-            swipe_dx: 0.,
+            paging: Paging::default(),
             add_page: false,
             add_input: None,
-            swipe_lock: None,
-            swipe_armed: false,
             next_id: 1,
             focus: cx.focus_handle(),
             window_size: (1512., 982.),
@@ -826,7 +851,12 @@ impl Workspace {
             return;
         }
         let n = self.projects.len();
-        self.p = (i + n) % n;
+        let i = (i + n) % n;
+        // A project's page opens on its worktrees.
+        if i != self.p || self.add_page {
+            self.side_tab = SideTab::Worktrees;
+        }
+        self.p = i;
         self.add_page = false;
         self.store.set("active_project", &self.p);
         self.menu_open = false;
@@ -2099,89 +2129,193 @@ impl Workspace {
         ) || matches!((self.drag, which), (Some(Drag::Pane { idx, .. }), w) if w == format!("pane{idx}"))
     }
 
-    /// Two-finger horizontal swipe over the sidebar pages through projects,
-    /// then to the "add a project" page after the last one.
+    /// The sidebar page on screen: a project index, or `projects.len()` for "add a project".
+    pub fn page(&self) -> usize {
+        if self.add_page {
+            self.projects.len()
+        } else {
+            self.p
+        }
+    }
+
+    /// Where the page strip sits relative to its resting place, in px.
+    pub(super) fn page_offset(&self, now: Instant) -> f32 {
+        let g = &self.paging;
+        if g.live && g.axis == Some(gpui::Axis::Horizontal) {
+            let (cur, last) = (self.page(), self.projects.len());
+            let past_end = (cur == 0 && g.drag > 0.) || (cur == last && g.drag < 0.);
+            return if past_end { rubber(g.drag) } else { g.drag };
+        }
+        if let Some((from, start, dur)) = g.anim {
+            let t = now.duration_since(start).as_secs_f32() / dur.as_secs_f32();
+            return from * (1. - ease_out(t.clamp(0., 1.)));
+        }
+        0.
+    }
+
+    /// Called from the sidebar's render: ends a finished slide, keeps a running
+    /// one animating, and drops a gesture the system took over.
+    pub(super) fn tick_paging(&mut self, now: Instant, window: &Window) {
+        let g = &mut self.paging;
+        if let Some((_, start, dur)) = g.anim {
+            if now.duration_since(start) >= dur {
+                g.anim = None;
+            } else if !crate::prefs::reduce_motion() {
+                window.request_animation_frame();
+            }
+        }
+        if g.live
+            && g.last
+                .is_some_and(|t| now.duration_since(t) > Duration::from_millis(700))
+        {
+            *g = Paging::default();
+        }
+    }
+
+    /// Two-finger swipe over the sidebar: the pages follow the fingers; on
+    /// release they snap to the nearest page, or turn on a flick. Past the
+    /// first or last page the strip only gives a little. Momentum after
+    /// lift-off is ignored, so one gesture never turns two pages.
     pub(super) fn on_side_wheel(
         &mut self,
         e: &ScrollWheelEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui::TouchPhase;
-        // Trackpads report precise pixel deltas with gesture phases; mice report lines.
+        use gpui::{Axis, TouchPhase};
+        let width = self.sizes().0;
+        if self.projects.is_empty() || width <= 0. {
+            return;
+        }
         let trackpad = matches!(e.delta, ScrollDelta::Pixels(_));
         let (dx, dy) = match e.delta {
             ScrollDelta::Pixels(p) => (f32::from(p.x), f32::from(p.y)),
             ScrollDelta::Lines(l) => (l.x * 20., l.y * 20.),
         };
-        if trackpad {
-            match e.touch_phase {
-                TouchPhase::Started => {
-                    self.swipe_armed = true;
-                    self.swipe_acc = 0.;
-                }
-                TouchPhase::Ended => {
-                    self.swipe_armed = false;
-                    self.settle_swipe(cx);
-                    return;
-                }
-                _ => {}
+        let now = Instant::now();
+        if !trackpad {
+            // A mouse wheel has no gesture: a few notches sideways turn one page.
+            let g = &mut self.paging;
+            if g.wheel_at
+                .is_some_and(|t| now.duration_since(t) > Duration::from_millis(300))
+            {
+                g.wheel = 0.;
             }
-            if !self.swipe_armed {
-                return; // momentum, or the rest of a gesture that already switched
+            g.wheel_at = Some(now);
+            if dx.abs() <= dy.abs() || g.anim.is_some() {
+                return;
             }
-        } else if self
-            .swipe_lock
-            .is_some_and(|t| t.elapsed() < Duration::from_millis(450))
-        {
+            g.wheel += dx;
+            if g.wheel.abs() >= 60. {
+                let step: i64 = if g.wheel < 0. { 1 } else { -1 };
+                g.wheel = 0.;
+                let target = self.page() as i64 + step;
+                let last = self.projects.len() as i64;
+                self.go_to_page(target.clamp(0, last) as usize, None, window, cx);
+            }
             return;
         }
-        if self.projects.is_empty() || dx.abs() <= dy.abs() * 1.2 {
-            return;
+        match e.touch_phase {
+            TouchPhase::Started => {
+                // Catch the strip where it is if it was still sliding.
+                let offset = self.page_offset(now);
+                self.paging = Paging {
+                    live: true,
+                    drag: offset,
+                    axis: (offset.abs() > 0.5).then_some(Axis::Horizontal),
+                    last: Some(now),
+                    ..Paging::default()
+                };
+                return;
+            }
+            TouchPhase::Ended => {
+                self.release_swipe(width, window, cx);
+                return;
+            }
+            _ => {}
         }
-        let n = self.projects.len();
-        let page = if self.add_page { n } else { self.p };
-        self.swipe_acc -= dx;
-        let dir: i64 = if self.swipe_acc > 0. { 1 } else { -1 };
-        let target = page as i64 + dir;
-        // Resist at the ends instead of wrapping around.
-        let at_end = target < 0 || target > n as i64;
-        if self.swipe_acc.abs() > 90. && !at_end {
-            self.swipe_armed = false;
-            self.swipe_acc = 0.;
-            self.swipe_dx = 0.;
-            self.swipe_lock = Some(Instant::now());
-            if target as usize == n {
-                self.show_add_page(window, cx);
+        let g = &mut self.paging;
+        if !g.live {
+            return; // momentum after lift-off, or a gesture that began elsewhere
+        }
+        if g.axis.is_none() {
+            g.probe.0 += dx.abs();
+            g.probe.1 += dy.abs();
+            if g.probe.0 + g.probe.1 < 8. {
+                return;
+            }
+            g.axis = Some(if g.probe.0 > g.probe.1 {
+                Axis::Horizontal
             } else {
-                self.select_project(target as usize, window, cx);
-            }
-        } else {
-            let reach = if at_end { 18. } else { 60. };
-            self.swipe_dx = (-self.swipe_acc * 0.5).clamp(-reach, reach);
-            if !trackpad {
-                self.settle_swipe(cx);
-            }
+                Axis::Vertical
+            });
         }
+        if g.axis != Some(Axis::Horizontal) {
+            return; // a vertical scroll: the lists handle it
+        }
+        let dt = g
+            .last
+            .map(|t| now.duration_since(t).as_secs_f32())
+            .unwrap_or(1. / 60.)
+            .max(0.001);
+        g.last = Some(now);
+        g.vel = g.vel * 0.6 + (dx / dt) * 0.4;
+        g.drag += dx;
         cx.notify();
     }
 
-    /// Slide the page back if a swipe stops short of switching.
-    fn settle_swipe(&mut self, cx: &mut Context<Self>) {
-        let acc_now = self.swipe_acc;
-        cx.spawn(async move |this, cx| {
-            cx.background_executor()
-                .timer(Duration::from_millis(140))
-                .await;
-            let _ = this.update(cx, |this, cx| {
-                if this.swipe_acc == acc_now {
-                    this.swipe_acc = 0.;
-                    this.swipe_dx = 0.;
-                    cx.notify();
-                }
-            });
-        })
-        .detach();
+    fn release_swipe(&mut self, width: f32, window: &mut Window, cx: &mut Context<Self>) {
+        let now = Instant::now();
+        let offset = self.page_offset(now);
+        let g = &mut self.paging;
+        let horizontal = g.axis == Some(gpui::Axis::Horizontal);
+        let (drag, vel) = (g.drag, g.vel);
+        *g = Paging::default();
+        if !horizontal {
+            return;
+        }
+        // A flick turns the page; otherwise it has to be dragged most of the way.
+        let dir: i64 = if vel.abs() > 400. {
+            if vel < 0. { 1 } else { -1 }
+        } else if drag.abs() > width * 0.4 {
+            if drag < 0. { 1 } else { -1 }
+        } else {
+            0
+        };
+        let last = self.projects.len() as i64;
+        let target = (self.page() as i64 + dir).clamp(0, last) as usize;
+        self.go_to_page(target, Some(offset), window, cx);
+    }
+
+    /// Show page `target` (a project, or `projects.len()` for "add a project"),
+    /// sliding the strip from where it is now (`offset`, or wherever a slide in
+    /// progress has got to).
+    pub fn go_to_page(
+        &mut self,
+        target: usize,
+        offset: Option<f32>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let last = self.projects.len();
+        let target = target.min(last);
+        let cur = self.page();
+        let width = self.sizes().0.max(1.);
+        let now = Instant::now();
+        let offset = offset.unwrap_or_else(|| self.page_offset(now));
+        // The strip keeps its place on screen while the current page changes under it.
+        let from = offset + (target as f32 - cur as f32) * width;
+        if target == last {
+            self.show_add_page(window, cx);
+        } else if target != cur {
+            self.select_project(target, window, cx);
+        }
+        self.paging = Paging::default();
+        if from.abs() >= 0.5 && !crate::prefs::reduce_motion() {
+            let ms = 180. + 140. * (from.abs() / width).min(1.);
+            self.paging.anim = Some((from, now, Duration::from_millis(ms as u64)));
+        }
+        cx.notify();
     }
 
     fn on_key(&mut self, e: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
