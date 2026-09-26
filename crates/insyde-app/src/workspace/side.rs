@@ -33,6 +33,36 @@ impl Workspace {
             shown.push(cur + 1);
         }
         let mut strip = div().relative().flex_1().min_h_0().overflow_hidden();
+        // The Worktrees / Files / Search tabs stay fixed while the pages slide
+        // under them. On the add page, picking a tab goes back to the project.
+        let tab_ix = match self.side_tab {
+            SideTab::Worktrees => 0,
+            SideTab::Files => 1,
+            SideTab::Search => 2,
+        };
+        let seg = ui::segmented(
+            "side-seg",
+            &["Worktrees", "Files", "Search"],
+            tab_ix,
+            t,
+            true,
+            26.,
+            {
+                let e = cx.entity().downgrade();
+                move |i, w, cx| {
+                    let _ = e.update(cx, |this, cx| {
+                        this.side_tab = [SideTab::Worktrees, SideTab::Files, SideTab::Search][i];
+                        if this.add_page {
+                            let p = this.p;
+                            this.go_to_page(p, None, w, cx);
+                            this.side_tab =
+                                [SideTab::Worktrees, SideTab::Files, SideTab::Search][i];
+                        }
+                        cx.notify();
+                    });
+                }
+            },
+        );
         for i in shown {
             let page = if i == last {
                 self.render_add_page(t, cx)
@@ -112,6 +142,7 @@ impl Workspace {
             .overflow_hidden()
             // Two-finger swipe anywhere on the sidebar pages between projects.
             .on_scroll_wheel(cx.listener(Self::on_side_wheel))
+            .child(div().px(px(10.)).pt(px(10.)).pb(px(8.)).child(seg))
             .child(strip)
             .child(
                 div()
@@ -137,8 +168,8 @@ impl Workspace {
             .into_any_element()
     }
 
-    /// One project's page: the Worktrees / Files / Search tabs and the chosen
-    /// one. A page being pulled in by a swipe shows its worktrees.
+    /// One project's page: the chosen tab's content (the tabs themselves stay
+    /// put above the pages). A page being pulled in by a swipe shows its worktrees.
     fn render_project_page(
         &mut self,
         i: usize,
@@ -152,28 +183,6 @@ impl Workspace {
         } else {
             SideTab::Worktrees
         };
-        let tab_ix = match tab {
-            SideTab::Worktrees => 0,
-            SideTab::Files => 1,
-            SideTab::Search => 2,
-        };
-        let seg = ui::segmented(
-            "side-seg",
-            &["Worktrees", "Files", "Search"],
-            tab_ix,
-            t,
-            true,
-            26.,
-            {
-                let e = cx.entity().downgrade();
-                move |i, _, cx| {
-                    let _ = e.update(cx, |this, cx| {
-                        this.side_tab = [SideTab::Worktrees, SideTab::Files, SideTab::Search][i];
-                        cx.notify();
-                    });
-                }
-            },
-        );
         let body = match tab {
             SideTab::Worktrees => self.render_worktrees(i, t, window, cx),
             SideTab::Files => self.render_files(t, cx),
@@ -184,7 +193,6 @@ impl Workspace {
             .flex_col()
             .size_full()
             .min_h_0()
-            .child(div().px(px(10.)).pt(px(10.)).pb(px(8.)).child(seg))
             .child(body)
             .into_any_element()
     }
@@ -197,7 +205,7 @@ impl Workspace {
             .flex_col()
             .gap(px(14.))
             .px(px(16.))
-            .pt(px(18.))
+            .pt(px(8.))
             .child(
                 div()
                     .flex()
