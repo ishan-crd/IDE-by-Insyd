@@ -451,6 +451,7 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .restrict_scroll_to_axis()
                     .child(
                         div()
                             .flex()
@@ -660,6 +661,7 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .restrict_scroll_to_axis()
                     // Right-click on empty space: the worktree root's menu.
                     .on_mouse_down(
                         gpui::MouseButton::Right,
@@ -736,6 +738,7 @@ impl Workspace {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .restrict_scroll_to_axis()
                     .child(list),
             )
             .into_any_element()

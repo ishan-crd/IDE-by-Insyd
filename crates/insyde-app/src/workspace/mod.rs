@@ -281,6 +281,9 @@ pub struct Workspace {
     pub add_page: bool,
     pub add_input: Option<Entity<InputState>>,
     swipe_lock: Option<Instant>,
+    /// A trackpad gesture is in progress and hasn't switched pages yet. One
+    /// gesture switches at most once; momentum after lift-off is ignored.
+    swipe_armed: bool,
     next_id: u64,
     focus: FocusHandle,
     pub window_size: (f32, f32),
@@ -368,6 +371,7 @@ impl Workspace {
             add_page: false,
             add_input: None,
             swipe_lock: None,
+            swipe_armed: false,
             next_id: 1,
             focus: cx.focus_handle(),
             window_size: (1512., 982.),
@@ -2103,16 +2107,36 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        use gpui::TouchPhase;
+        // Trackpads report precise pixel deltas with gesture phases; mice report lines.
+        let trackpad = matches!(e.delta, ScrollDelta::Pixels(_));
         let (dx, dy) = match e.delta {
             ScrollDelta::Pixels(p) => (f32::from(p.x), f32::from(p.y)),
             ScrollDelta::Lines(l) => (l.x * 20., l.y * 20.),
         };
-        if dx.abs() <= dy.abs()
-            || self
-                .swipe_lock
-                .is_some_and(|t| t.elapsed() < Duration::from_millis(520))
-            || self.projects.is_empty()
+        if trackpad {
+            match e.touch_phase {
+                TouchPhase::Started => {
+                    self.swipe_armed = true;
+                    self.swipe_acc = 0.;
+                }
+                TouchPhase::Ended => {
+                    self.swipe_armed = false;
+                    self.settle_swipe(cx);
+                    return;
+                }
+                _ => {}
+            }
+            if !self.swipe_armed {
+                return; // momentum, or the rest of a gesture that already switched
+            }
+        } else if self
+            .swipe_lock
+            .is_some_and(|t| t.elapsed() < Duration::from_millis(450))
         {
+            return;
+        }
+        if self.projects.is_empty() || dx.abs() <= dy.abs() * 1.2 {
             return;
         }
         let n = self.projects.len();
@@ -2122,7 +2146,8 @@ impl Workspace {
         let target = page as i64 + dir;
         // Resist at the ends instead of wrapping around.
         let at_end = target < 0 || target > n as i64;
-        if self.swipe_acc.abs() > 110. && !at_end {
+        if self.swipe_acc.abs() > 90. && !at_end {
+            self.swipe_armed = false;
             self.swipe_acc = 0.;
             self.swipe_dx = 0.;
             self.swipe_lock = Some(Instant::now());
@@ -2132,24 +2157,31 @@ impl Workspace {
                 self.select_project(target as usize, window, cx);
             }
         } else {
-            let reach = if at_end { 18. } else { 70. };
+            let reach = if at_end { 18. } else { 60. };
             self.swipe_dx = (-self.swipe_acc * 0.5).clamp(-reach, reach);
-            let acc_now = self.swipe_acc;
-            cx.spawn(async move |this, cx| {
-                cx.background_executor()
-                    .timer(Duration::from_millis(160))
-                    .await;
-                let _ = this.update(cx, |this, cx| {
-                    if this.swipe_acc == acc_now {
-                        this.swipe_acc = 0.;
-                        this.swipe_dx = 0.;
-                        cx.notify();
-                    }
-                });
-            })
-            .detach();
+            if !trackpad {
+                self.settle_swipe(cx);
+            }
         }
         cx.notify();
+    }
+
+    /// Slide the page back if a swipe stops short of switching.
+    fn settle_swipe(&mut self, cx: &mut Context<Self>) {
+        let acc_now = self.swipe_acc;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(140))
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.swipe_acc == acc_now {
+                    this.swipe_acc = 0.;
+                    this.swipe_dx = 0.;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     fn on_key(&mut self, e: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
