@@ -1,0 +1,13 @@
+{
+  "name": "insyde-monorepo",
+  "private": true,
+  "description": "InsyDE: the Rust app (Cargo workspace in crates/) and the web packages (npm workspaces).",
+  "workspaces": [
+    "site"
+  ],
+  "scripts": {
+    "site": "npm run dev -w site",
+    "site:build": "npm run build -w site",
+    "site:preview": "npm run preview -w site"
+  }
+}

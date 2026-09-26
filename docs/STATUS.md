@@ -19,6 +19,12 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 | Web access (new) | Done | Browser client in the InsyDE theme (projects and threads, streaming chat with approvals, model/mode/policy pickers, new thread in a new worktree, changes panel with diffs, commit/push/PR, terminal drawer with a phone key bar, command palette). Served from the app (Settings › Web access: this Mac, LAN + Tailscale, or a cloudflared public link; QR pairing) or `insy serve`. Web threads run in the server's hub, separate from the desktop's open tabs (they share history). |
 | Brain (new) | Done | SiYuan-style model, graph, notes, digest injected into agent prompts. |
 
+## Landing page
+
+`site/` is the marketing page (React + Vite), in an npm workspace at the repo root next to the Cargo
+workspace. It renders the app's UI from HTML components using the same tokens and icons; see
+`site/README.md`.
+
 ## Deviations from docs/02-STACK.md
 
 - **git**: system `git` for reads too (not `gix`). Every call is bounded (8 concurrent, output

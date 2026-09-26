@@ -1,3 +1,7 @@
 /target
 .DS_Store
 *.log
+
+# Web packages
+node_modules/
+site/dist/
