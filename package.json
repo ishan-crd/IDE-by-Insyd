@@ -1,13 +1,14 @@
 {
   "name": "insyde-monorepo",
   "private": true,
-  "description": "InsyDE: the Rust app (Cargo workspace in crates/) and the web packages (npm workspaces).",
-  "workspaces": [
-    "site"
-  ],
+  "description": "InsyDE: the Rust app (Cargo workspace in crates/) and the web packages (pnpm workspace).",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
-    "site": "npm run dev -w site",
-    "site:build": "npm run build -w site",
-    "site:preview": "npm run preview -w site"
+    "site": "pnpm --filter site dev",
+    "site:build": "pnpm --filter site build",
+    "site:preview": "pnpm --filter site preview"
   }
 }

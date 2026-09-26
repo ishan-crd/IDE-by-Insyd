@@ -21,7 +21,7 @@ Crates are named `insyde-*` (the plan's `ide-*`).
 
 ## Landing page
 
-`site/` is the marketing page (React + Vite), in an npm workspace at the repo root next to the Cargo
+`site/` is the marketing page (React + Vite), in a pnpm workspace at the repo root next to the Cargo
 workspace. It renders the app's UI from HTML components using the same tokens and icons; see
 `site/README.md`.
 
