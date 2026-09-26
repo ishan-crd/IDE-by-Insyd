@@ -5,3 +5,4 @@
 # Web packages
 node_modules/
 site/dist/
+*.tsbuildinfo
