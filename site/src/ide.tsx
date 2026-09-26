@@ -314,9 +314,9 @@ export function StatusBar() {
 }
 
 /** The whole app window, as in the desktop build. */
-export function IdeWindow({ className = '' }: { className?: string }) {
+export function IdeWindow({ className = '', glass = false }: { className?: string; glass?: boolean }) {
   return (
-    <div className={`win ${className}`} style={{ height: '100%' }}>
+    <div className={`win ${glass ? 'glassy ' : ''}${className}`} style={{ height: '100%' }}>
       <TopBar />
       <div className="ide-body">
         <Sidebar />

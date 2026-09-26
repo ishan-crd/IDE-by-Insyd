@@ -13,5 +13,8 @@ tabs, chat, diff, terminals, popovers) in HTML with the app's own tokens and ico
 `assets/icons`, `public/agents` is `assets/icons/agents`), so they stay sharp and can animate. `Scaled`
 renders them at desktop size and scales to fit. If the app's UI changes, update these components with it.
 
+Look: a drifting aurora behind glass panels, serif-italic accents (Instrument Serif), and the app shown in its
+real Glass mode (`IdeWindow glass`) on a desktop wallpaper.
+
 Motion: `motion` for reveals and scroll-linked transforms, `lenis` for smooth scrolling; both respect
 `prefers-reduced-motion`.
